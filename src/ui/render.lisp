@@ -83,6 +83,62 @@
         (setf (de.anvi.croatoan:cursor-position-x win) 2)
         (format win "~a" title)))))
 
+(defun render-chat-pane (win buf)
+  "Render a buffer's messages into a chat window pane."
+  (let* ((msgs (ring->list (buffer-scrollback buf)))
+         (h (de.anvi.croatoan:height win))
+         (w (de.anvi.croatoan:width win))
+         (content-h (- h 2))
+         (content-w (- w 2))
+         (offset (buffer-scroll-offset buf)))
+    ;; Build display lines from messages
+    (let ((display-lines nil))
+      (loop for m in msgs
+            for nick = (or (clatter.core.model:message-nick m) "*")
+            for text = (clatter.core.model:message-text m)
+            for highlightp = (clatter.core.model:message-highlight m)
+            for nick-display = (format nil "~a: " nick)
+            for nick-len = (length nick-display)
+            for text-width = (max 1 (- content-w nick-len))
+            for wrapped = (wrap-text text text-width)
+            do (let ((first-line t))
+                 (dolist (line wrapped)
+                   (push (list :nick (if first-line nick-display
+                                         (make-string nick-len :initial-element #\Space))
+                               :text line
+                               :highlight highlightp
+                               :nick-raw nick
+                               :first first-line)
+                         display-lines)
+                   (setf first-line nil))))
+      (setf display-lines (nreverse display-lines))
+      (let* ((total (length display-lines))
+             (end (max 0 (- total offset)))
+             (start (max 0 (- end content-h)))
+             (visible (subseq display-lines start end))
+             (y 1))
+        (dolist (dl visible)
+          (when (< y (1+ content-h))
+            (let ((nick-display (getf dl :nick))
+                  (text-display (getf dl :text))
+                  (highlightp (getf dl :highlight))
+                  (nick-raw (getf dl :nick-raw))
+                  (firstp (getf dl :first)))
+              (setf (de.anvi.croatoan:cursor-position-y win) y)
+              (setf (de.anvi.croatoan:cursor-position-x win) 1)
+              (if highlightp
+                  (de.anvi.croatoan:add-string win nick-display
+                                               :fgcolor :yellow :bgcolor :red
+                                               :attributes (if firstp '(:bold) nil))
+                  (if firstp
+                      (de.anvi.croatoan:add-string win nick-display :fgcolor (nick-color nick-raw))
+                      (de.anvi.croatoan:add-string win nick-display)))
+              (if highlightp
+                  (de.anvi.croatoan:add-string win text-display
+                                               :fgcolor :white :bgcolor :red)
+                  (de.anvi.croatoan:add-string win text-display)))
+            (incf y)))))))
+
 (defun render-frame (app)
   (unless (dirty-p app)
     (return-from render-frame app))
@@ -113,76 +169,38 @@
                                (and (> hi 0) hi))
             do (%draw-line wbuf (1+ i) 1 (subseq line 0 (min (length line) content-w)))))
 
-    ;; chat area: render last visible lines (inside border) with wrapping
-    (let* ((buf (current-buffer app))
-           (msgs (ring->list (buffer-scrollback buf)))
-           (h (de.anvi.croatoan:height wchat))
-           (w (de.anvi.croatoan:width wchat))
-           (content-h (- h 2))  ;; inside border
-           (content-w (- w 2))
-           (offset (buffer-scroll-offset buf)))
-      ;; Build display lines from messages (newest first for offset calculation)
-      (let ((display-lines nil))
-        ;; Process messages and wrap them
-        (loop for m in msgs
-              for nick = (or (clatter.core.model:message-nick m) "*")
-              for text = (clatter.core.model:message-text m)
-              for highlightp = (clatter.core.model:message-highlight m)
-              for nick-display = (format nil "~a: " nick)
-              for nick-len = (length nick-display)
-              for text-width = (max 1 (- content-w nick-len))
-              for wrapped = (wrap-text text text-width)
-              do (let ((first-line t))
-                   (dolist (line wrapped)
-                     (push (list :nick (if first-line nick-display
-                                           (make-string nick-len :initial-element #\Space))
-                                 :text line
-                                 :highlight highlightp
-                                 :nick-raw nick
-                                 :first first-line)
-                           display-lines)
-                     (setf first-line nil))))
-        ;; Reverse to get chronological order
-        (setf display-lines (nreverse display-lines))
-        ;; Apply offset and take visible lines
-        (let* ((total (length display-lines))
-               (end (max 0 (- total offset)))
-               (start (max 0 (- end content-h)))
-               (visible (subseq display-lines start end))
-               (y 1))
-          (dolist (dl visible)
-            (when (< y (1+ content-h))
-              (let ((nick-display (getf dl :nick))
-                    (text-display (getf dl :text))
-                    (highlightp (getf dl :highlight))
-                    (nick-raw (getf dl :nick-raw))
-                    (firstp (getf dl :first)))
-                ;; Position cursor
-                (setf (de.anvi.croatoan:cursor-position-y wchat) y)
-                (setf (de.anvi.croatoan:cursor-position-x wchat) 1)
-                ;; Draw nick (only colored on first line)
-                (if highlightp
-                    (de.anvi.croatoan:add-string wchat nick-display
-                                                 :fgcolor :yellow :bgcolor :red
-                                                 :attributes (if firstp '(:bold) nil))
-                    (if firstp
-                        (de.anvi.croatoan:add-string wchat nick-display :fgcolor (nick-color nick-raw))
-                        (de.anvi.croatoan:add-string wchat nick-display)))
-                ;; Draw message text
-                (if highlightp
-                    (de.anvi.croatoan:add-string wchat text-display
-                                                 :fgcolor :white :bgcolor :red)
-                    (de.anvi.croatoan:add-string wchat text-display)))
-              (incf y))))))
+    ;; chat area: render pane(s)
+    (let ((left-buf (current-buffer app)))
+      ;; In split mode, show buffer name in border
+      (when (ui-split-mode ui)
+        (%clear-and-border wchat (format nil " ~a " (buffer-title left-buf)))
+        (render-chat-pane wchat left-buf))
+      ;; In normal mode, no title needed
+      (unless (ui-split-mode ui)
+        (render-chat-pane wchat left-buf)))
+    ;; Render second pane if in split mode
+    (let ((wchat2 (ui-win-chat2 ui)))
+      (when (and wchat2 (ui-split-mode ui))
+        (let ((split-buf-id (ui-split-buffer-id ui)))
+          (when (and split-buf-id (< split-buf-id (length (app-buffers app))))
+            (let ((right-buf (aref (app-buffers app) split-buf-id)))
+              (%clear-and-border wchat2 (format nil " ~a " (buffer-title right-buf)))
+              (render-chat-pane wchat2 right-buf))))))
 
     ;; status
     (let* ((buf (current-buffer app))
            (unread (buffer-unread-count buf))
            (highlights (buffer-highlight-count buf))
-           (line (format nil " [~a]~@[  unread:~d~]~@[  mentions:~d~]  | /q quit | Ctrl-P/N buffers | Tab complete"
-                         (buffer-title buf)
-                         (and (> unread 0) unread)
-                         (and (> highlights 0) highlights))))
+           (split-p (ui-split-mode ui))
+           (right-buf (when (and split-p (ui-split-buffer-id ui)
+                                 (< (ui-split-buffer-id ui) (length (app-buffers app))))
+                        (aref (app-buffers app) (ui-split-buffer-id ui))))
+           (line (if split-p
+                     (format nil " Ctrl-W unsplit | Ctrl-P/N left buf | Ctrl-R right buf | Ctrl-X swap")
+                     (format nil " [~a]~@[  unread:~d~]~@[  mentions:~d~]  | /q quit | Ctrl-W split | Ctrl-P/N buffers"
+                             (buffer-title buf)
+                             (and (> unread 0) unread)
+                             (and (> highlights 0) highlights)))))
       (%draw-line wstatus 0 0 (subseq line 0 (min (length line) (de.anvi.croatoan:width wstatus)))))
 
     ;; input
@@ -199,6 +217,9 @@
     ;; batch refresh to reduce flicker
     (de.anvi.croatoan:mark-for-refresh wbuf)
     (de.anvi.croatoan:mark-for-refresh wchat)
+    (let ((wchat2 (ui-win-chat2 ui)))
+      (when wchat2
+        (de.anvi.croatoan:mark-for-refresh wchat2)))
     (de.anvi.croatoan:mark-for-refresh wstatus)
     (de.anvi.croatoan:mark-for-refresh winput)
     (de.anvi.croatoan:refresh-marked)

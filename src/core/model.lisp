@@ -11,7 +11,7 @@
   (make-instance 'message :ts ts :level level :nick nick :text text :highlight highlight))
 
 (defclass buffer ()
-  ((id              :initarg :id :reader buffer-id)
+  ((id              :initarg :id :accessor buffer-id)
    (kind            :initarg :kind :reader buffer-kind) ; :server :channel :query
    (title           :initarg :title :accessor buffer-title)
    (scrollback      :initform (make-ring :capacity 4000) :reader buffer-scrollback)
@@ -35,12 +35,17 @@
   ((screen      :initform nil :accessor ui-screen)
    (win-buflist :initform nil :accessor ui-win-buflist)
    (win-chat    :initform nil :accessor ui-win-chat)
+   (win-chat2   :initform nil :accessor ui-win-chat2)  ;; second pane for split view
    (win-status  :initform nil :accessor ui-win-status)
    (win-input   :initform nil :accessor ui-win-input)
    (term-w      :initform 0 :accessor ui-term-w)
    (term-h      :initform 0 :accessor ui-term-h)
    (buflist-w   :initform 24 :accessor ui-buflist-w)
-   (input       :initform (make-input-state) :accessor ui-input)))
+   (input       :initform (make-input-state) :accessor ui-input)
+   ;; Split pane state
+   (split-mode  :initform nil :accessor ui-split-mode)  ;; nil or :horizontal
+   (split-buffer-id :initform nil :accessor ui-split-buffer-id)  ;; buffer shown in second pane
+   (active-pane :initform :left :accessor ui-active-pane)))  ;; :left or :right
 
 (defun make-ui-state () (make-instance 'ui-state))
 

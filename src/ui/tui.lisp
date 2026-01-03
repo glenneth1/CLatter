@@ -1,5 +1,65 @@
 (in-package #:clatter.ui.tui)
 
+(defun create-layout-windows (app scr)
+  "Create or recreate windows based on current split mode."
+  (let* ((ui (app-ui app))
+         (term-w (de.anvi.croatoan:width scr))
+         (term-h (de.anvi.croatoan:height scr))
+         (left-w (ui-buflist-w ui))
+         (gap 1)
+         (right-x (+ left-w gap))
+         (right-w (- term-w right-x))
+         (chat-h (- term-h 2))
+         (split-p (ui-split-mode ui)))
+    (setf (ui-term-w ui) term-w
+          (ui-term-h ui) term-h)
+    ;; Destroy old windows if they exist (use ncurses delwin directly)
+    (when (ui-win-buflist ui) (de.anvi.ncurses:delwin (de.anvi.croatoan:winptr (ui-win-buflist ui))))
+    (when (ui-win-chat ui) (de.anvi.ncurses:delwin (de.anvi.croatoan:winptr (ui-win-chat ui))))
+    (when (ui-win-chat2 ui) (de.anvi.ncurses:delwin (de.anvi.croatoan:winptr (ui-win-chat2 ui))))
+    (when (ui-win-status ui) (de.anvi.ncurses:delwin (de.anvi.croatoan:winptr (ui-win-status ui))))
+    (when (ui-win-input ui) (de.anvi.ncurses:delwin (de.anvi.croatoan:winptr (ui-win-input ui))))
+    ;; Create buffer list window
+    (setf (ui-win-buflist ui)
+          (make-instance 'de.anvi.croatoan:window
+                         :position (list 0 0)
+                         :dimensions (list term-h left-w)
+                         :border nil))
+    ;; Create chat window(s) based on split mode
+    (if split-p
+        ;; Split mode: two chat panes side by side
+        (let* ((pane-w (floor (- right-w 1) 2))  ;; 1 char gap between panes
+               (pane2-x (+ right-x pane-w 1)))
+          (setf (ui-win-chat ui)
+                (make-instance 'de.anvi.croatoan:window
+                               :position (list 0 right-x)
+                               :dimensions (list chat-h pane-w)
+                               :border nil))
+          (setf (ui-win-chat2 ui)
+                (make-instance 'de.anvi.croatoan:window
+                               :position (list 0 pane2-x)
+                               :dimensions (list chat-h pane-w)
+                               :border nil)))
+        ;; Single pane mode
+        (progn
+          (setf (ui-win-chat ui)
+                (make-instance 'de.anvi.croatoan:window
+                               :position (list 0 right-x)
+                               :dimensions (list chat-h right-w)
+                               :border nil))
+          (setf (ui-win-chat2 ui) nil)))
+    ;; Status and input windows (always full width of right side)
+    (setf (ui-win-status ui)
+          (make-instance 'de.anvi.croatoan:window
+                         :position (list chat-h right-x)
+                         :dimensions (list 1 right-w)
+                         :border nil))
+    (setf (ui-win-input ui)
+          (make-instance 'de.anvi.croatoan:window
+                         :position (list (1+ chat-h) right-x)
+                         :dimensions (list 1 right-w)
+                         :border nil))))
+
 (defun run-tui (app)
   (de.anvi.croatoan:with-screen (scr
                                 :input-buffering nil
@@ -12,30 +72,12 @@
     ;; Disable ncurses echo - we handle display ourselves
     (de.anvi.ncurses:noecho)
 
-    ;; layout numbers - add 1 char gap between buffer list and chat
-    (let* ((term-w (de.anvi.croatoan:width scr))
-           (term-h (de.anvi.croatoan:height scr))
-           (left-w (ui-buflist-w (app-ui app)))
-           (gap 1)  ;; gap between panels
-           (right-x (+ left-w gap))
-           (right-w (- term-w right-x))
-           (chat-h (- term-h 2)))
-      (setf (ui-term-w (app-ui app)) term-w)
-      (setf (ui-term-h (app-ui app)) term-h)
+    ;; Create initial layout
+    (create-layout-windows app scr)
 
-      (de.anvi.croatoan:with-windows
-          ((wbuf   :x 0       :y 0       :width left-w  :height term-h :border nil)
-           (wchat  :x right-x :y 0       :width right-w :height chat-h :border nil)
-           (wstat  :x right-x :y chat-h  :width right-w :height 1      :border nil)
-           (winp   :x right-x :y (1+ chat-h) :width right-w :height 1  :border nil))
-        (setf (ui-win-buflist (app-ui app)) wbuf
-              (ui-win-chat    (app-ui app)) wchat
-              (ui-win-status  (app-ui app)) wstat
-              (ui-win-input   (app-ui app)) winp)
+    (install-keybindings scr app)
 
-        (install-keybindings scr app)
+    (mark-dirty app :layout :chat :buflist :status :input)
+    (render-frame app)
 
-        (mark-dirty app :layout :chat :buflist :status :input)
-        (render-frame app)
-
-        (de.anvi.croatoan:run-event-loop scr)))))
+    (de.anvi.croatoan:run-event-loop scr)))

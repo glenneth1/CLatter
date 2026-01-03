@@ -289,13 +289,13 @@
 (defun irc-create-channel-buffer (conn channel)
   "Create a new buffer for a channel."
   (let* ((app (irc-app conn))
-         (buffers (clatter.core.model:app-buffers app))
-         (new-id (length buffers))
          (kind (if (char= (char channel 0) #\#) :channel :query))
-         (buf (clatter.core.model:make-buffer :id new-id :kind kind :title channel)))
+         (buf (clatter.core.model:make-buffer :id -1 :kind kind :title channel)))  ;; ID set in submit
     (de.anvi.croatoan:submit
-      (vector-push-extend buf buffers)
-      (clatter.core.model:mark-dirty app :buflist))
+      (let ((buffers (clatter.core.model:app-buffers app)))
+        (setf (clatter.core.model:buffer-id buf) (length buffers))
+        (vector-push-extend buf buffers)
+        (clatter.core.model:mark-dirty app :buflist)))
     buf))
 
 (defun irc-read-loop (conn)

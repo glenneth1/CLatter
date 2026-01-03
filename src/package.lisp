@@ -14,6 +14,7 @@
    #:mark-dirty #:dirty-p #:clear-dirty
    #:buffer #:make-buffer #:buffer-id #:buffer-title #:buffer-kind #:buffer-scrollback
    #:buffer-unread-count #:buffer-highlight-count #:buffer-scroll-offset #:buffer-members
+   #:ui-win-chat2 #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
    #:message #:make-message #:message-ts #:message-level #:message-nick #:message-text #:message-highlight
    #:ui-state #:make-ui-state #:ui-input #:ui-screen
    #:ui-win-buflist #:ui-win-chat #:ui-win-status #:ui-win-input
@@ -60,10 +61,11 @@
 (defpackage #:clatter.core.dispatch
   (:use #:cl)
   (:import-from #:clatter.core.model
-                #:app #:buffer #:message
+                #:app #:app-ui #:app-current-buffer-id #:buffer #:buffer-id #:message
                 #:mark-dirty #:current-buffer #:find-buffer
                 #:buffer-scrollback #:buffer-unread-count #:buffer-highlight-count
-                #:buffer-scroll-offset)
+                #:buffer-scroll-offset
+                #:ui-split-mode #:ui-split-buffer-id)
   (:import-from #:clatter.core.ring #:ring-push)
   (:export #:apply-event #:deliver-message))
 
@@ -87,16 +89,19 @@
                 #:current-buffer #:buffer-scrollback #:buffer-scroll-offset
                 #:input-text #:input-cursor
                 #:dirty-p #:clear-dirty
-                #:ui-win-buflist #:ui-win-chat #:ui-win-status #:ui-win-input #:ui-input)
+                #:ui-win-buflist #:ui-win-chat #:ui-win-chat2 #:ui-win-status #:ui-win-input #:ui-input
+                #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane)
   (:import-from #:clatter.core.ring #:ring->list)
   (:export #:render-frame))
 
 (defpackage #:clatter.ui.keymap
   (:use #:cl)
   (:import-from #:clatter.core.model
-                #:app #:mark-dirty #:current-buffer
+                #:app #:app-ui #:mark-dirty #:current-buffer
                 #:app-buffers #:app-current-buffer-id #:buffer-scroll-offset #:dirty-p
-                #:app-quit-requested)
+                #:app-quit-requested #:ui-screen
+                #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
+                #:buffer-unread-count #:buffer-highlight-count)
   (:import-from #:clatter.ui.input
                 #:input-insert-char #:input-backspace #:input-delete
                 #:input-move-left #:input-move-right #:input-move-home #:input-move-end
@@ -108,11 +113,12 @@
 (defpackage #:clatter.ui.tui
   (:use #:cl)
   (:import-from #:clatter.core.model #:app #:app-ui #:make-ui-state #:make-input-state
-                #:mark-dirty #:ui-screen #:ui-win-buflist #:ui-win-chat #:ui-win-status
-                #:ui-win-input #:ui-term-w #:ui-term-h #:ui-buflist-w)
+                #:mark-dirty #:ui-screen #:ui-win-buflist #:ui-win-chat #:ui-win-chat2
+                #:ui-win-status #:ui-win-input #:ui-term-w #:ui-term-h #:ui-buflist-w
+                #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane)
   (:import-from #:clatter.ui.render #:render-frame)
   (:import-from #:clatter.ui.keymap #:install-keybindings)
-  (:export #:run-tui))
+  (:export #:run-tui #:create-layout-windows))
 
 (defpackage #:clatter.net.client
   (:use #:cl)
