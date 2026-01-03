@@ -70,6 +70,14 @@
               (ui-split-buffer-id ui) left-id))
       (mark-dirty app :chat :buflist :status))))
 
+(defun %toggle-active-pane (app)
+  "Toggle which pane is active for input."
+  (let ((ui (app-ui app)))
+    (when (ui-split-mode ui)
+      (setf (ui-active-pane ui)
+            (if (eq (ui-active-pane ui) :left) :right :left))
+      (mark-dirty app :chat :status))))
+
 (defun install-keybindings (screen app)
   ;; quit with F10 or Esc-q (use /quit command as primary method)
   (de.anvi.croatoan:bind screen :key-f10 #'de.anvi.croatoan:exit-event-loop)
@@ -114,6 +122,8 @@
   (de.anvi.croatoan:bind screen (code-char 23) (lambda (o e) (declare (ignore o e)) (%toggle-split app)))  ;; Ctrl-W toggle split
   (de.anvi.croatoan:bind screen (code-char 18) (lambda (o e) (declare (ignore o e)) (%split-set-right-buffer app)))  ;; Ctrl-R set right pane
   (de.anvi.croatoan:bind screen (code-char 24) (lambda (o e) (declare (ignore o e)) (%swap-panes app)))  ;; Ctrl-X swap panes
+  ;; Ctrl+] to toggle active pane (where input goes)
+  (de.anvi.croatoan:bind screen (code-char 29) (lambda (o e) (declare (ignore o e)) (%toggle-active-pane app)))  ;; Ctrl+] toggle active pane
 
   ;; raw escape sequence binds (Ghostty/xterm)
   (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\A) 'string) (lambda (o e) (declare (ignore o e)) (input-history-prev app)))

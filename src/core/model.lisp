@@ -77,3 +77,10 @@
 
 (defun current-buffer (app)
   (find-buffer app (app-current-buffer-id app)))
+
+(defun active-buffer (app)
+  "Return the buffer that should receive input (respects active pane in split mode)."
+  (let ((ui (app-ui app)))
+    (if (and ui (ui-split-mode ui) (eq (ui-active-pane ui) :right))
+        (find-buffer app (ui-split-buffer-id ui))
+        (current-buffer app))))

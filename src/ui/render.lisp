@@ -170,21 +170,29 @@
             do (%draw-line wbuf (1+ i) 1 (subseq line 0 (min (length line) content-w)))))
 
     ;; chat area: render pane(s)
-    (let ((left-buf (current-buffer app)))
-      ;; In split mode, show buffer name in border
+    (let ((left-buf (current-buffer app))
+          (active-pane (ui-active-pane ui)))
+      ;; In split mode, show buffer name in border with active indicator
       (when (ui-split-mode ui)
-        (%clear-and-border wchat (format nil " ~a " (buffer-title left-buf)))
+        (let ((left-title (format nil " ~a~a "
+                                  (if (eq active-pane :left) "» " "")
+                                  (buffer-title left-buf))))
+          (%clear-and-border wchat left-title))
         (render-chat-pane wchat left-buf))
       ;; In normal mode, no title needed
       (unless (ui-split-mode ui)
         (render-chat-pane wchat left-buf)))
     ;; Render second pane if in split mode
-    (let ((wchat2 (ui-win-chat2 ui)))
+    (let ((wchat2 (ui-win-chat2 ui))
+          (active-pane (ui-active-pane ui)))
       (when (and wchat2 (ui-split-mode ui))
         (let ((split-buf-id (ui-split-buffer-id ui)))
           (when (and split-buf-id (< split-buf-id (length (app-buffers app))))
-            (let ((right-buf (aref (app-buffers app) split-buf-id)))
-              (%clear-and-border wchat2 (format nil " ~a " (buffer-title right-buf)))
+            (let* ((right-buf (aref (app-buffers app) split-buf-id))
+                   (right-title (format nil " ~a~a "
+                                        (if (eq active-pane :right) "» " "")
+                                        (buffer-title right-buf))))
+              (%clear-and-border wchat2 right-title)
               (render-chat-pane wchat2 right-buf))))))
 
     ;; status
@@ -196,7 +204,7 @@
                                  (< (ui-split-buffer-id ui) (length (app-buffers app))))
                         (aref (app-buffers app) (ui-split-buffer-id ui))))
            (line (if split-p
-                     (format nil " Ctrl-W unsplit | Ctrl-P/N left buf | Ctrl-R right buf | Ctrl-X swap")
+                     (format nil " Ctrl+] pane | Ctrl-W unsplit | Ctrl-P/N left buf | Ctrl-R right buf | Ctrl-X swap")
                      (format nil " [~a]~@[  unread:~d~]~@[  mentions:~d~]  | /q quit | Ctrl-W split | Ctrl-P/N buffers"
                              (buffer-title buf)
                              (and (> unread 0) unread)

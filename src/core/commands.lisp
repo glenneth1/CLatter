@@ -41,7 +41,7 @@
     
     ;; /part [#channel] [message]
     ((string= cmd "PART")
-     (let* ((buf (clatter.core.model:current-buffer app))
+     (let* ((buf (clatter.core.model:active-buffer app))
             (target (clatter.core.model:buffer-title buf)))
        (if (> (length args) 0)
            (if (char= (char args 0) #\#)
@@ -69,7 +69,7 @@
     
     ;; /me action
     ((string= cmd "ME")
-     (let* ((buf (clatter.core.model:current-buffer app))
+     (let* ((buf (clatter.core.model:active-buffer app))
             (target (clatter.core.model:buffer-title buf)))
        (when (and (> (length args) 0) (> (length target) 0))
          (let ((action-text (format nil "~CACTION ~a~C" (code-char 1) args (code-char 1))))
@@ -274,8 +274,8 @@
                app (clatter.core.model:current-buffer app)
                (clatter.core.model:make-message :level :error :nick "*"
                                                 :text (format nil "Unknown command: /~a" cmd))))))
-        ;; It's a chat message - send to current buffer's target
-        (let* ((buf (clatter.core.model:current-buffer app))
+        ;; It's a chat message - send to active buffer's target (respects split pane)
+        (let* ((buf (clatter.core.model:active-buffer app))
                (target (clatter.core.model:buffer-title buf))
                (kind (clatter.core.model:buffer-kind buf)))
           (when (and conn (member kind '(:channel :query)) (> (length target) 0))

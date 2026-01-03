@@ -20,7 +20,7 @@
    #:ui-win-buflist #:ui-win-chat #:ui-win-status #:ui-win-input
    #:ui-term-w #:ui-term-h #:ui-buflist-w
    #:input-state #:make-input-state #:input-text #:input-cursor #:input-history #:input-history-pos
-   #:find-buffer #:current-buffer))
+   #:find-buffer #:current-buffer #:active-buffer))
 
 (defpackage #:clatter.core.config
   (:use #:cl)
