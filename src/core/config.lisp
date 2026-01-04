@@ -2,6 +2,8 @@
 
 (defvar *config-dir* (merge-pathnames ".config/clatter/" (user-homedir-pathname)))
 (defvar *config-file* (merge-pathnames "config.lisp" *config-dir*))
+(defvar *authinfo-file* (merge-pathnames ".authinfo" (user-homedir-pathname)))
+(defvar *authinfo-gpg-file* (merge-pathnames ".authinfo.gpg" (user-homedir-pathname)))
 
 (defclass network-config ()
   ((name        :initarg :name :accessor network-config-name)
@@ -13,6 +15,7 @@
    (realname    :initarg :realname :accessor network-config-realname :initform "CLatter User")
    (password    :initarg :password :accessor network-config-password :initform nil)
    (nickserv-pw :initarg :nickserv-pw :accessor network-config-nickserv-pw :initform nil)
+   (sasl        :initarg :sasl :accessor network-config-sasl :initform nil)  ; :plain or nil
    (autojoin    :initarg :autojoin :accessor network-config-autojoin :initform nil)
    (autoconnect :initarg :autoconnect :accessor network-config-autoconnect :initform nil)))
 
@@ -40,6 +43,7 @@
         :realname (network-config-realname nc)
         :password (network-config-password nc)
         :nickserv-pw (network-config-nickserv-pw nc)
+        :sasl (network-config-sasl nc)
         :autojoin (network-config-autojoin nc)
         :autoconnect (network-config-autoconnect nc)))
 
@@ -104,3 +108,60 @@
    :nick nick
    :realname "CLatter User"
    :autoconnect t))
+
+;;; Authinfo support for reading passwords from ~/.authinfo or ~/.authinfo.gpg
+
+(defun read-authinfo-content ()
+  "Read authinfo content, decrypting .gpg file if needed."
+  (cond
+    ;; Try encrypted file first
+    ((probe-file *authinfo-gpg-file*)
+     (handler-case
+         (with-output-to-string (out)
+           (uiop:run-program (list "gpg" "--quiet" "--decrypt" 
+                                   (namestring *authinfo-gpg-file*))
+                             :output out
+                             :error-output nil))
+       (error () nil)))
+    ;; Fall back to plain text file
+    ((probe-file *authinfo-file*)
+     (uiop:read-file-string *authinfo-file*))
+    (t nil)))
+
+(defun parse-authinfo-line (line)
+  "Parse a single authinfo line into a plist.
+Format: machine HOST login USER password PASS [port PORT]"
+  (let ((tokens (uiop:split-string line :separator '(#\Space #\Tab)))
+        (result nil))
+    (loop while tokens do
+      (let ((key (pop tokens))
+            (val (pop tokens)))
+        (when (and key val)
+          (cond
+            ((string-equal key "machine") (setf (getf result :machine) val))
+            ((string-equal key "login") (setf (getf result :login) val))
+            ((string-equal key "password") (setf (getf result :password) val))
+            ((string-equal key "port") (setf (getf result :port) val))))))
+    result))
+
+(defun lookup-authinfo (machine &optional login)
+  "Look up credentials from authinfo for MACHINE (and optionally LOGIN).
+Returns plist with :login and :password, or nil if not found."
+  (let ((content (read-authinfo-content)))
+    (when content
+      (dolist (line (uiop:split-string content :separator '(#\Newline)))
+        (let ((entry (parse-authinfo-line line)))
+          (when (and entry
+                     (string-equal (getf entry :machine) machine)
+                     (or (null login)
+                         (string-equal (getf entry :login) login)))
+            (return entry)))))))
+
+(defun get-network-password (nc)
+  "Get password for network config, checking authinfo if :nickserv-pw is :authinfo."
+  (let ((pw (network-config-nickserv-pw nc)))
+    (if (eq pw :authinfo)
+        (let ((entry (lookup-authinfo (network-config-server nc)
+                                      (network-config-nick nc))))
+          (getf entry :password))
+        pw)))

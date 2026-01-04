@@ -9,6 +9,7 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 ** Features
 
 - *TLS Support* - Secure connections to IRC servers
+- *SASL Authentication* - Authenticate before connection completes (hides IP)
 - *Nick Colorization* - Each nick gets a consistent color based on hash
 - *Nick Highlighting* - Messages mentioning your nick are highlighted
 - *Tab Completion* - Press Tab to complete nicks in the current channel
@@ -16,6 +17,7 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 - *Multi-buffer Interface* - Server, channel, and query buffers
 - *Command History* - Up/Down arrows to navigate input history
 - *Scrollback* - Page Up/Down to scroll through message history
+- *Split-Pane View* - View two channels side-by-side
 
 ** Requirements
 
@@ -60,10 +62,39 @@ Example:
    :username nil
    :realname "Your Name"
    :password nil
-   :nickserv-pw nil
+   :nickserv-pw "your-password"
+   :sasl :plain
    :autojoin ("#lisp" "#emacs")
    :autoconnect t)))
 #+end_src
+
+*** SASL Authentication
+
+SASL authenticates you *before* your connection is visible, so your IP/hostname is cloaked from the start. To enable SASL:
+
+1. You must have a registered nick with NickServ
+2. Add =:sasl :plain= to your network config
+3. Ensure =:nickserv-pw= contains your NickServ password (or use =:authinfo=)
+
+*** Authinfo Password Storage
+
+Instead of storing passwords in =config.lisp=, you can use =~/.authinfo= or =~/.authinfo.gpg= (encrypted with GPG). Set =:nickserv-pw :authinfo= in your config:
+
+#+begin_src lisp
+(:name "libera"
+ :server "irc.libera.chat"
+ :nick "yournick"
+ :nickserv-pw :authinfo
+ :sasl :plain
+ ...)
+#+end_src
+
+Then add an entry to your =~/.authinfo.gpg= file:
+#+begin_example
+machine irc.libera.chat login yournick password your-secret-password
+#+end_example
+
+CLatter will decrypt the file using GPG and look up the password by matching the server and nick.
 
 ** Commands
 
@@ -96,6 +127,10 @@ Example:
 | Ctrl-E      | Move to end of line       |
 | Backspace   | Delete character          |
 | Enter       | Send message/command      |
+| Ctrl-W      | Toggle split-pane view    |
+| Ctrl-]      | Switch active pane        |
+| Ctrl-R      | Set right pane buffer     |
+| Ctrl-X      | Swap panes                |
 
 ** License
 

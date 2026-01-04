@@ -30,10 +30,10 @@
    #:network-config-name #:network-config-server #:network-config-port
    #:network-config-tls #:network-config-nick #:network-config-username
    #:network-config-realname #:network-config-password #:network-config-nickserv-pw
-   #:network-config-autojoin #:network-config-autoconnect
+   #:network-config-sasl #:network-config-autojoin #:network-config-autoconnect
    #:config #:make-config #:config-networks #:config-default-network
    #:load-config #:save-config #:find-network-config #:add-network-config
-   #:default-libera-config))
+   #:default-libera-config #:get-network-password #:lookup-authinfo))
 
 (defpackage #:clatter.core.protocol
   (:use #:cl)
