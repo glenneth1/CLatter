@@ -10,6 +10,20 @@
   (let ((hash (reduce #'+ (map 'list #'char-code nick))))
     (nth (mod hash (length *nick-colors*)) *nick-colors*)))
 
+(defun format-time (universal-time fmt)
+  "Format universal time using format string.
+Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM/PM)."
+  (multiple-value-bind (sec min hour) (decode-universal-time universal-time)
+    (let* ((hour12 (let ((h (mod hour 12))) (if (zerop h) 12 h)))
+           (ampm (if (< hour 12) "AM" "PM"))
+           (result fmt))
+      (setf result (cl-ppcre:regex-replace-all "%H" result (format nil "~2,'0d" hour)))
+      (setf result (cl-ppcre:regex-replace-all "%I" result (format nil "~2,'0d" hour12)))
+      (setf result (cl-ppcre:regex-replace-all "%M" result (format nil "~2,'0d" min)))
+      (setf result (cl-ppcre:regex-replace-all "%S" result (format nil "~2,'0d" sec)))
+      (setf result (cl-ppcre:regex-replace-all "%p" result ampm))
+      result)))
+
 (defun wrap-text (text width)
   "Wrap text to fit within width, returning list of lines."
   (if (<= (length text) width)
@@ -90,14 +104,18 @@
          (w (de.anvi.croatoan:width win))
          (content-h (- h 2))
          (content-w (- w 2))
-         (offset (buffer-scroll-offset buf)))
+         (offset (buffer-scroll-offset buf))
+         (time-fmt (let ((cfg clatter.core.commands:*current-config*))
+                     (if cfg (clatter.core.config:config-time-format cfg) "%H:%M"))))
     ;; Build display lines from messages
     (let ((display-lines nil))
       (loop for m in msgs
+            for ts = (clatter.core.model:message-ts m)
+            for time-str = (format-time ts time-fmt)
             for nick = (or (clatter.core.model:message-nick m) "*")
             for text = (clatter.core.model:message-text m)
             for highlightp = (clatter.core.model:message-highlight m)
-            for nick-display = (format nil "~a: " nick)
+            for nick-display = (format nil "[~a] ~a: " time-str nick)
             for nick-len = (length nick-display)
             for text-width = (max 1 (- content-w nick-len))
             for wrapped = (wrap-text text text-width)

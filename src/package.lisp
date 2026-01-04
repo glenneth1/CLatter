@@ -31,7 +31,7 @@
    #:network-config-tls #:network-config-nick #:network-config-username
    #:network-config-realname #:network-config-password #:network-config-nickserv-pw
    #:network-config-sasl #:network-config-autojoin #:network-config-autoconnect
-   #:config #:make-config #:config-networks #:config-default-network
+   #:config #:make-config #:config-networks #:config-default-network #:config-time-format
    #:load-config #:save-config #:find-network-config #:add-network-config
    #:default-libera-config #:get-network-password #:lookup-authinfo))
 

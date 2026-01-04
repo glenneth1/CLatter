@@ -21,7 +21,8 @@
 
 (defclass config ()
   ((networks :initarg :networks :accessor config-networks :initform nil)
-   (default-network :initarg :default-network :accessor config-default-network :initform nil)))
+   (default-network :initarg :default-network :accessor config-default-network :initform nil)
+   (time-format :initarg :time-format :accessor config-time-format :initform "%H:%M")))
 
 (defun make-network-config (&rest args)
   (apply #'make-instance 'network-config args))
@@ -56,6 +57,7 @@
   `(:clatter-config
     :version 1
     :default-network ,(config-default-network cfg)
+    :time-format ,(config-time-format cfg)
     :networks ,(mapcar #'network-config-to-plist (config-networks cfg))))
 
 (defun sexp-to-config (sexp)
@@ -64,6 +66,8 @@
     (when (and (listp sexp) (eq (car sexp) :clatter-config))
       (let ((plist (cdr sexp)))
         (setf (config-default-network cfg) (getf plist :default-network))
+        (when (getf plist :time-format)
+          (setf (config-time-format cfg) (getf plist :time-format)))
         (setf (config-networks cfg)
               (mapcar #'plist-to-network-config (getf plist :networks)))))
     cfg))
