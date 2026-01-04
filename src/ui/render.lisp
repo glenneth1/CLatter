@@ -127,15 +127,17 @@
               (setf (de.anvi.croatoan:cursor-position-y win) y)
               (setf (de.anvi.croatoan:cursor-position-x win) 1)
               (if highlightp
+                  ;; Highlighted messages: bold magenta for visibility without harsh background
                   (de.anvi.croatoan:add-string win nick-display
-                                               :fgcolor :yellow :bgcolor :red
-                                               :attributes (if firstp '(:bold) nil))
+                                               :fgcolor :magenta
+                                               :attributes '(:bold))
                   (if firstp
                       (de.anvi.croatoan:add-string win nick-display :fgcolor (nick-color nick-raw))
                       (de.anvi.croatoan:add-string win nick-display)))
               (if highlightp
                   (de.anvi.croatoan:add-string win text-display
-                                               :fgcolor :white :bgcolor :red)
+                                               :fgcolor :magenta
+                                               :attributes '(:bold))
                   (de.anvi.croatoan:add-string win text-display)))
             (incf y)))))))
 
