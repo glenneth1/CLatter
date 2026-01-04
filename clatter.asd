@@ -12,6 +12,7 @@
    (:file "src/core/config")
    (:file "src/core/protocol")
    (:file "src/core/events")
+   (:file "src/core/logging")
    (:file "src/core/dispatch")
    (:file "src/net/client")
    (:file "src/net/irc")

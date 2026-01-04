@@ -14,7 +14,14 @@
    (write-lock     :initform (bordeaux-threads:make-lock "irc-write") :accessor irc-write-lock)
    ;; SASL state
    (sasl-state     :initform nil :accessor irc-sasl-state)  ; nil :requested :authenticating :done
-   (cap-negotiating :initform nil :accessor irc-cap-negotiating)))
+   (cap-negotiating :initform nil :accessor irc-cap-negotiating)
+   ;; Reconnection state
+   (reconnect-enabled :initform t :accessor irc-reconnect-enabled)
+   (reconnect-attempts :initform 0 :accessor irc-reconnect-attempts)
+   (max-reconnect-delay :initform 300 :accessor irc-max-reconnect-delay)  ; 5 minutes max
+   ;; Health monitoring
+   (last-activity  :initform (get-universal-time) :accessor irc-last-activity)
+   (ping-sent-time :initform nil :accessor irc-ping-sent-time)))
 
 (defun make-irc-connection (app network-id network-config)
   (make-instance 'irc-connection
@@ -167,7 +174,13 @@
     (cond
       ;; PING -> PONG
       ((string= command "PING")
+       (setf (irc-last-activity conn) (get-universal-time))
        (irc-send conn (clatter.core.protocol:irc-pong (or (first params) ""))))
+      
+      ;; PONG - response to our health check ping
+      ((string= command "PONG")
+       (setf (irc-last-activity conn) (get-universal-time))
+       (setf (irc-ping-sent-time conn) nil))
       
       ;; CAP response - handle SASL negotiation
       ((string= command "CAP")
@@ -215,10 +228,16 @@
       ;; PRIVMSG
       ((string= command "PRIVMSG")
        (let* ((target (first params))
-              (text (clatter.core.protocol:strip-irc-formatting (second params)))
+              (raw-text (second params))
+              (text (clatter.core.protocol:strip-irc-formatting raw-text))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (sender-nick (clatter.core.protocol:prefix-nick parsed-prefix)))
-         (irc-deliver-chat conn target sender-nick text)))
+         ;; Check for CTCP (starts and ends with \x01)
+         (if (and (> (length raw-text) 1)
+                  (char= (char raw-text 0) (code-char 1))
+                  (char= (char raw-text (1- (length raw-text))) (code-char 1)))
+             (irc-handle-ctcp conn sender-nick raw-text)
+             (irc-deliver-chat conn target sender-nick text))))
       
       ;; NOTICE
       ((string= command "NOTICE")
@@ -275,6 +294,49 @@
       (t
        (irc-log-system conn "~a ~{~a~^ ~}" command params)))))
 
+(defun irc-handle-ctcp (conn sender-nick raw-text)
+  "Handle incoming CTCP request and send appropriate reply."
+  ;; Strip the \x01 delimiters
+  (let* ((ctcp-content (subseq raw-text 1 (1- (length raw-text))))
+         (space-pos (position #\Space ctcp-content))
+         (ctcp-cmd (string-upcase (if space-pos
+                                      (subseq ctcp-content 0 space-pos)
+                                      ctcp-content)))
+         (ctcp-args (if space-pos
+                        (subseq ctcp-content (1+ space-pos))
+                        "")))
+    (cond
+      ;; ACTION - display as /me
+      ((string= ctcp-cmd "ACTION")
+       (let* ((app (irc-app conn))
+              (buf (clatter.core.model:find-buffer app 0)))  ; server buffer for now
+         (de.anvi.croatoan:submit
+           (clatter.core.dispatch:deliver-message
+            app buf
+            (clatter.core.model:make-message :level :chat
+                                             :nick (format nil "* ~a" sender-nick)
+                                             :text ctcp-args)))))
+      ;; VERSION - reply with client info
+      ((string= ctcp-cmd "VERSION")
+       (irc-send conn (clatter.core.protocol:irc-ctcp-reply
+                       sender-nick "VERSION" "CLatter 0.0.1 - Common Lisp IRC Client"))
+       (irc-log-system conn "CTCP VERSION from ~a" sender-nick))
+      ;; PING - echo back the argument
+      ((string= ctcp-cmd "PING")
+       (irc-send conn (clatter.core.protocol:irc-ctcp-reply sender-nick "PING" ctcp-args))
+       (irc-log-system conn "CTCP PING from ~a" sender-nick))
+      ;; TIME - reply with current time
+      ((string= ctcp-cmd "TIME")
+       (let ((time-str (multiple-value-bind (sec min hour day month year)
+                           (get-decoded-time)
+                         (format nil "~4,'0d-~2,'0d-~2,'0d ~2,'0d:~2,'0d:~2,'0d"
+                                 year month day hour min sec))))
+         (irc-send conn (clatter.core.protocol:irc-ctcp-reply sender-nick "TIME" time-str))
+         (irc-log-system conn "CTCP TIME from ~a" sender-nick)))
+      ;; Unknown CTCP - just log it
+      (t
+       (irc-log-system conn "CTCP ~a from ~a: ~a" ctcp-cmd sender-nick ctcp-args)))))
+
 (defun irc-deliver-chat (conn target sender-nick text)
   "Deliver a PRIVMSG to the appropriate buffer."
   (let ((app (irc-app conn)))
@@ -287,15 +349,28 @@
          :highlightp highlight)))))
 
 (defun irc-deliver-notice (conn target sender-nick text)
-  "Deliver a NOTICE to the appropriate buffer."
+  "Deliver a NOTICE to the appropriate buffer. CTCP replies go to server buffer."
   (let ((app (irc-app conn)))
     (de.anvi.croatoan:submit
-      (let ((buf (if (or (string= target "*") (string= target (irc-nick conn)))
-                     (clatter.core.model:find-buffer app 0)
-                     (irc-find-or-create-buffer conn target))))
+      ;; Check if this is a CTCP reply (starts and ends with \x01)
+      (let* ((is-ctcp (and (> (length text) 1)
+                           (char= (char text 0) (code-char 1))
+                           (char= (char text (1- (length text))) (code-char 1))))
+             ;; Strip CTCP delimiters if present
+             (display-text (if is-ctcp
+                               (format nil "CTCP reply from ~a: ~a" 
+                                       sender-nick 
+                                       (subseq text 1 (1- (length text))))
+                               text))
+             ;; CTCP replies and notices to us go to server buffer
+             (buf (if (or is-ctcp
+                          (string= target "*") 
+                          (string= target (irc-nick conn)))
+                      (clatter.core.model:find-buffer app 0)
+                      (irc-find-or-create-buffer conn target))))
         (clatter.core.dispatch:deliver-message
          app buf
-         (clatter.core.model:make-message :level :notice :nick sender-nick :text text))))))
+         (clatter.core.model:make-message :level :notice :nick sender-nick :text display-text))))))
 
 (defun irc-deliver-join (conn channel nick)
   "Deliver a JOIN notification and add nick to member list."
@@ -394,15 +469,62 @@
       (irc-log-error conn "Read error: ~a" e)
       (setf (irc-state conn) :disconnected))))
 
+(defun reconnect-delay (attempts)
+  "Calculate reconnect delay with exponential backoff. Returns seconds."
+  (min 300 (expt 2 (min attempts 8))))  ; 1, 2, 4, 8, 16, 32, 64, 128, 256, 300 max
+
+(defun irc-connection-loop (conn)
+  "Main connection loop with auto-reconnect support."
+  (loop
+    (setf (irc-sasl-state conn) nil
+          (irc-cap-negotiating conn) nil
+          (irc-ping-sent-time conn) nil
+          (irc-last-activity conn) (get-universal-time))
+    (cond
+      ((irc-connect conn)
+       ;; Connected successfully - reset attempts
+       (setf (irc-reconnect-attempts conn) 0)
+       (irc-register conn)
+       (irc-read-loop conn)
+       (irc-disconnect conn))
+      (t
+       ;; Connection failed
+       (incf (irc-reconnect-attempts conn))))
+    ;; Check if we should reconnect
+    (unless (irc-reconnect-enabled conn)
+      (irc-log-system conn "Reconnection disabled, staying disconnected")
+      (return))
+    ;; Calculate delay and wait
+    (let ((delay (reconnect-delay (irc-reconnect-attempts conn))))
+      (irc-log-system conn "Reconnecting in ~a seconds..." delay)
+      (sleep delay))))
+
 (defun start-irc-connection (app network-id network-config)
   "Start an IRC connection in a background thread."
   (let ((conn (make-irc-connection app network-id network-config)))
     (setf (irc-thread conn)
           (bordeaux-threads:make-thread
            (lambda ()
-             (when (irc-connect conn)
-               (irc-register conn)
-               (irc-read-loop conn)
-               (irc-disconnect conn)))
+             (irc-connection-loop conn))
            :name (format nil "irc-~a" (clatter.core.config:network-config-name network-config))))
     conn))
+
+(defun irc-check-health (conn)
+  "Check connection health. Call periodically from main thread.
+   Sends a PING if idle too long, disconnects if PING times out."
+  (when (eq (irc-state conn) :connected)
+    (let* ((now (get-universal-time))
+           (idle-time (- now (irc-last-activity conn)))
+           (ping-timeout 120)   ; 2 minutes without activity -> send ping
+           (pong-timeout 60))   ; 1 minute to respond to ping
+      (cond
+        ;; We sent a ping and it timed out
+        ((and (irc-ping-sent-time conn)
+              (> (- now (irc-ping-sent-time conn)) pong-timeout))
+         (irc-log-error conn "Connection timed out (no PONG received)")
+         (irc-disconnect conn))
+        ;; Idle too long, send a ping
+        ((and (null (irc-ping-sent-time conn))
+              (> idle-time ping-timeout))
+         (setf (irc-ping-sent-time conn) now)
+         (irc-send conn (format nil "PING :clatter-~a" now)))))))

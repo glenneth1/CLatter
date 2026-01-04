@@ -44,9 +44,12 @@
    #:parse-prefix #:prefix-nick #:strip-irc-formatting
    #:irc-nick #:irc-user #:irc-pass #:irc-join #:irc-part
    #:irc-privmsg #:irc-notice #:irc-quit #:irc-pong #:irc-ping #:irc-cap
+   #:irc-whois #:irc-topic #:irc-kick #:irc-mode #:irc-ctcp-reply
    #:+rpl-welcome+ #:+rpl-yourhost+ #:+rpl-created+ #:+rpl-myinfo+ #:+rpl-isupport+
    #:+rpl-namreply+ #:+rpl-endofnames+ #:+rpl-motd+ #:+rpl-motdstart+ #:+rpl-endofmotd+
-   #:+rpl-topic+ #:+rpl-topicwhotime+ #:+err-nicknameinuse+))
+   #:+rpl-topic+ #:+rpl-topicwhotime+ #:+err-nicknameinuse+
+   #:+rpl-whoisuser+ #:+rpl-whoisserver+ #:+rpl-whoisoperator+
+   #:+rpl-whoisidle+ #:+rpl-endofwhois+ #:+rpl-whoischannels+ #:+rpl-whoisaccount+))
 
 (defpackage #:clatter.core.commands
   (:use #:cl)
@@ -57,6 +60,14 @@
 (defpackage #:clatter.core.events
   (:use #:cl)
   (:export #:ev #:ev-type #:ev-plist))
+
+(defpackage #:clatter.core.logging
+  (:use #:cl)
+  (:export
+   #:*log-base-dir* #:*logging-enabled* #:*current-network*
+   #:log-message #:write-log-entry
+   #:read-recent-logs #:search-logs #:list-logged-targets #:list-log-files
+   #:export-logs #:export-logs-text #:export-logs-json #:export-logs-html))
 
 (defpackage #:clatter.core.dispatch
   (:use #:cl)
@@ -132,6 +143,8 @@
    #:irc-connection #:make-irc-connection
    #:irc-connect #:irc-disconnect #:irc-send
    #:irc-state #:irc-nick #:irc-network-config
+   #:irc-reconnect-enabled
+   #:irc-check-health
    #:start-irc-connection))
 
 (defpackage #:clatter.app

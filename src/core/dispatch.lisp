@@ -17,6 +17,8 @@
   (when highlightp
     (setf (clatter.core.model:message-highlight msg) t))
   (ring-push (buffer-scrollback buf) msg)
+  ;; Log the message to disk
+  (clatter.core.logging:log-message buf msg)
   ;; Only increment unread if buffer is not visible in either pane
   (unless (buffer-visible-p app buf)
     (incf (buffer-unread-count buf))

@@ -22,30 +22,33 @@
 - [X] Autojoin management (/autojoin add/remove)
 - [X] /q shortcut for /quit
 
+*** v0.2 - Polish & Usability
+- [X] CTCP support (VERSION, TIME, PING)
+- [X] /whois command
+- [X] /topic command
+- [X] /kick and /ban commands
+- [X] /mode command
+- [X] Timestamps on messages (configurable format)
+- [X] /ctcp command for sending CTCP requests
+
+*** v0.2.1 - Resilience
+- [X] Auto-reconnect with exponential backoff
+- [X] Connection health monitoring (idle detection, ping/pong)
+- [X] Graceful handling of connection drops
+
 ** Planned Features
 
-*** v0.2 - Polish & Usability
-- [ ] CTCP support (VERSION, TIME, PING)
-- [ ] /whois command
-- [ ] /topic command
-- [ ] /kick and /ban commands
-- [ ] Channel modes display
-- [ ] User list panel (toggleable)
-- [ ] Timestamps on messages
-- [ ] URL detection and highlighting
-- [ ] Desktop notifications (libnotify)
+*** v0.3 - Logging & Search
+- [X] Message logging to disk
+- [X] Log search functionality
+- [X] Log viewer/browser (/log command)
+- [X] Export logs to various formats (text, JSON, HTML)
 
-*** v0.3 - Multi-Network
+*** v0.4 - Multi-Network
 - [ ] Multiple simultaneous network connections
 - [ ] Network switching commands
 - [ ] Per-network buffer organization
 - [ ] /server command to add/connect networks
-
-*** v0.4 - Logging & Search
-- [ ] Message logging to disk
-- [ ] Log search functionality
-- [ ] Log viewer/browser
-- [ ] Export logs to various formats
 
 *** v1.0 - Daemon Mode (Major)
 - [ ] Separate IRC backend daemon process
@@ -62,11 +65,15 @@
 - [ ] Plugin/scripting system (maybe via Lisp eval)
 - [ ] Theming support (color schemes)
 - [ ] Mouse support for buffer switching
-- [ ] Split-pane view for multiple channels
+- [X] Split-pane view for multiple channels
 - [ ] DCC file transfer support
-- [ ] IRCv3 capabilities (SASL, message-tags, etc.)
+- [X] IRCv3 capabilities (SASL PLAIN authentication)
 - [ ] Matrix bridge support
 - [ ] Spell checking integration
+- [ ] Channel modes display
+- [ ] User list panel (toggleable)
+- [ ] URL detection and highlighting
+- [ ] Desktop notifications (libnotify)
 
 ** Contributing
 

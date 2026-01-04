@@ -172,6 +172,31 @@
 (defun irc-cap (subcommand &rest args)
   (apply #'format-irc-line "CAP" subcommand args))
 
+(defun irc-whois (nick)
+  (format-irc-line "WHOIS" nick))
+
+(defun irc-topic (channel &optional new-topic)
+  (if new-topic
+      (format-irc-line "TOPIC" channel new-topic)
+      (format-irc-line "TOPIC" channel)))
+
+(defun irc-kick (channel nick &optional reason)
+  (if reason
+      (format-irc-line "KICK" channel nick reason)
+      (format-irc-line "KICK" channel nick)))
+
+(defun irc-mode (target &optional mode &rest args)
+  (if mode
+      (apply #'format-irc-line "MODE" target mode args)
+      (format-irc-line "MODE" target)))
+
+(defun irc-ctcp-reply (target command &optional text)
+  "Format a CTCP reply (sent via NOTICE)."
+  (let ((ctcp-text (if text
+                       (format nil "~C~A ~A~C" (code-char 1) command text (code-char 1))
+                       (format nil "~C~A~C" (code-char 1) command (code-char 1)))))
+    (irc-notice target ctcp-text)))
+
 ;;; Numeric reply codes
 
 (defparameter +rpl-welcome+ "001")
@@ -187,3 +212,12 @@
 (defparameter +rpl-topic+ "332")
 (defparameter +rpl-topicwhotime+ "333")
 (defparameter +err-nicknameinuse+ "433")
+
+;; WHOIS reply codes
+(defparameter +rpl-whoisuser+ "311")
+(defparameter +rpl-whoisserver+ "312")
+(defparameter +rpl-whoisoperator+ "313")
+(defparameter +rpl-whoisidle+ "317")
+(defparameter +rpl-endofwhois+ "318")
+(defparameter +rpl-whoischannels+ "319")
+(defparameter +rpl-whoisaccount+ "330")

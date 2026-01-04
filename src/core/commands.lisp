@@ -94,6 +94,8 @@
     ;; /quit or /q [message]
     ((or (string= cmd "QUIT") (string= cmd "Q"))
      (when conn
+       ;; Disable auto-reconnect before quitting
+       (setf (clatter.net.irc:irc-reconnect-enabled conn) nil)
        (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-quit
                                        (if (> (length args) 0) args "CLatter"))))
      ;; Signal quit by setting a flag - the TUI will check this
@@ -136,6 +138,100 @@
      (show-help app)
      t)
     
+    ;; /whois nick - query user info
+    ((string= cmd "WHOIS")
+     (when (> (length args) 0)
+       (multiple-value-bind (nick rest) (split-first-word args)
+         (declare (ignore rest))
+         (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-whois nick))))
+     t)
+    
+    ;; /topic [new topic] - view or set channel topic
+    ((string= cmd "TOPIC")
+     (let* ((buf (clatter.core.model:active-buffer app))
+            (target (clatter.core.model:buffer-title buf)))
+       (if (> (length args) 0)
+           ;; Set topic
+           (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-topic target args))
+           ;; View topic
+           (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-topic target))))
+     t)
+    
+    ;; /kick nick [reason] - kick user from channel
+    ((string= cmd "KICK")
+     (when (> (length args) 0)
+       (let* ((buf (clatter.core.model:active-buffer app))
+              (channel (clatter.core.model:buffer-title buf)))
+         (when (and (> (length channel) 0) (char= (char channel 0) #\#))
+           (multiple-value-bind (nick reason) (split-first-word args)
+             (clatter.net.irc:irc-send conn
+               (if (> (length reason) 0)
+                   (clatter.core.protocol:irc-kick channel nick reason)
+                   (clatter.core.protocol:irc-kick channel nick)))))))
+     t)
+    
+    ;; /ban nick - ban user from channel (+b nick!*@*)
+    ((string= cmd "BAN")
+     (when (> (length args) 0)
+       (let* ((buf (clatter.core.model:active-buffer app))
+              (channel (clatter.core.model:buffer-title buf)))
+         (when (and (> (length channel) 0) (char= (char channel 0) #\#))
+           (multiple-value-bind (nick rest) (split-first-word args)
+             (declare (ignore rest))
+             ;; Simple ban mask: nick!*@*
+             (let ((banmask (format nil "~a!*@*" nick)))
+               (clatter.net.irc:irc-send conn
+                 (clatter.core.protocol:irc-mode channel "+b" banmask)))))))
+     t)
+    
+    ;; /unban nick - remove ban
+    ((string= cmd "UNBAN")
+     (when (> (length args) 0)
+       (let* ((buf (clatter.core.model:active-buffer app))
+              (channel (clatter.core.model:buffer-title buf)))
+         (when (and (> (length channel) 0) (char= (char channel 0) #\#))
+           (multiple-value-bind (nick rest) (split-first-word args)
+             (declare (ignore rest))
+             (let ((banmask (format nil "~a!*@*" nick)))
+               (clatter.net.irc:irc-send conn
+                 (clatter.core.protocol:irc-mode channel "-b" banmask)))))))
+     t)
+    
+    ;; /mode [modes] - view or set channel/user modes
+    ((string= cmd "MODE")
+     (let* ((buf (clatter.core.model:active-buffer app))
+            (target (clatter.core.model:buffer-title buf)))
+       (if (> (length args) 0)
+           ;; If args starts with # it's a channel, otherwise apply to current target
+           (if (char= (char args 0) #\#)
+               (clatter.net.irc:irc-send conn (format nil "MODE ~a" args))
+               (clatter.net.irc:irc-send conn (format nil "MODE ~a ~a" target args)))
+           ;; View modes
+           (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-mode target))))
+     t)
+    
+    ;; /ctcp target command - send CTCP query
+    ((string= cmd "CTCP")
+     (when (> (length args) 0)
+       (multiple-value-bind (target rest) (split-first-word args)
+         (let ((ctcp-cmd (if (> (length rest) 0)
+                             (string-upcase rest)
+                             "VERSION")))
+           ;; Send CTCP request as PRIVMSG with \x01 delimiters
+           (let ((ctcp-msg (format nil "~C~A~C" (code-char 1) ctcp-cmd (code-char 1))))
+             (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-privmsg target ctcp-msg)))
+           (de.anvi.croatoan:submit
+             (clatter.core.dispatch:deliver-message
+              app (clatter.core.model:current-buffer app)
+              (clatter.core.model:make-message :level :system :nick "*"
+                                               :text (format nil "CTCP ~a sent to ~a" ctcp-cmd target)))))))
+     t)
+    
+    ;; /log [search pattern] - view or search logs
+    ((string= cmd "LOG")
+     (handle-log-command app args)
+     t)
+    
     ;; Unknown command
     (t nil)))
 
@@ -143,6 +239,118 @@
   "Get the network config for the current connection."
   (when (and *current-connection* *current-config*)
     (clatter.net.irc:irc-network-config *current-connection*)))
+
+(defun handle-log-command (app args)
+  "Handle /log command: view recent logs or search.
+   /log - show recent logs for current buffer
+   /log search <pattern> - search logs for pattern
+   /log list - list all logged targets
+   /log export [text|json|html] [path] - export logs"
+  (let* ((buf (clatter.core.model:active-buffer app))
+         (target (clatter.core.model:buffer-title buf))
+         (kind (clatter.core.model:buffer-kind buf))
+         (network clatter.core.logging:*current-network*))
+    (cond
+      ;; /log export [format] [path] - export logs
+      ((and (>= (length args) 6)
+            (string-equal (string-upcase (subseq args 0 6)) "EXPORT"))
+       (if (member kind '(:channel :query))
+           (let* ((rest (string-trim " " (subseq args 6)))
+                  (parts (uiop:split-string rest :separator " "))
+                  (format-str (string-upcase (or (first parts) "TEXT")))
+                  (format-key (cond ((string= format-str "JSON") :json)
+                                    ((string= format-str "HTML") :html)
+                                    (t :text)))
+                  (ext (case format-key (:json "json") (:html "html") (t "txt")))
+                  (default-path (merge-pathnames 
+                                 (format nil "~a-export.~a" 
+                                         (clatter.core.logging::sanitize-target target) ext)
+                                 (user-homedir-pathname)))
+                  (output-path (if (second parts)
+                                   (pathname (second parts))
+                                   default-path))
+                  (count (clatter.core.logging:export-logs network target format-key output-path)))
+             (de.anvi.croatoan:submit
+               (clatter.core.dispatch:deliver-message
+                app buf
+                (clatter.core.model:make-message 
+                 :level :system :nick "*log*"
+                 :text (if count
+                           (format nil "Exported ~d lines to ~a" count (namestring output-path))
+                           "No logs to export")))))
+           (de.anvi.croatoan:submit
+             (clatter.core.dispatch:deliver-message
+              app buf
+              (clatter.core.model:make-message :level :error :nick "*"
+                                               :text "Use /log export in a channel or query buffer")))))
+      ;; /log list - show all logged targets
+      ((and (> (length args) 0)
+            (string-equal (string-upcase (subseq args 0 (min 4 (length args)))) "LIST"))
+       (let ((targets (clatter.core.logging:list-logged-targets network)))
+         (de.anvi.croatoan:submit
+           (clatter.core.dispatch:deliver-message
+            app buf
+            (clatter.core.model:make-message :level :system :nick "*log*"
+                                             :text (if targets
+                                                       (format nil "Logged targets: ~{~a~^, ~}" targets)
+                                                       "No logs found"))))))
+      ;; /log search <pattern> - search logs
+      ((and (> (length args) 6)
+            (string-equal (string-upcase (subseq args 0 6)) "SEARCH"))
+       (let ((pattern (string-trim " " (subseq args 6))))
+         (if (and (member kind '(:channel :query)) (> (length pattern) 0))
+             (let ((results (clatter.core.logging:search-logs network target pattern)))
+               (de.anvi.croatoan:submit
+                 (if results
+                     (progn
+                       (clatter.core.dispatch:deliver-message
+                        app buf
+                        (clatter.core.model:make-message :level :system :nick "*log*"
+                                                         :text (format nil "Search results for '~a' (~d matches):"
+                                                                       pattern (length results))))
+                       (dolist (result results)
+                         (clatter.core.dispatch:deliver-message
+                          app buf
+                          (clatter.core.model:make-message :level :system :nick (car result)
+                                                           :text (cdr result)))))
+                     (clatter.core.dispatch:deliver-message
+                      app buf
+                      (clatter.core.model:make-message :level :system :nick "*log*"
+                                                       :text (format nil "No matches for '~a'" pattern))))))
+             (de.anvi.croatoan:submit
+               (clatter.core.dispatch:deliver-message
+                app buf
+                (clatter.core.model:make-message :level :error :nick "*"
+                                                 :text "Usage: /log search <pattern> (in a channel/query buffer)"))))))
+      ;; /log - show recent logs for current buffer
+      ((member kind '(:channel :query))
+       (let ((lines (clatter.core.logging:read-recent-logs network target 50)))
+         (de.anvi.croatoan:submit
+           (if lines
+               (progn
+                 (clatter.core.dispatch:deliver-message
+                  app buf
+                  (clatter.core.model:make-message :level :system :nick "*log*"
+                                                   :text (format nil "--- Recent logs for ~a ---" target)))
+                 (dolist (line lines)
+                   (clatter.core.dispatch:deliver-message
+                    app buf
+                    (clatter.core.model:make-message :level :system :nick "" :text line)))
+                 (clatter.core.dispatch:deliver-message
+                  app buf
+                  (clatter.core.model:make-message :level :system :nick "*log*"
+                                                   :text "--- End of logs ---")))
+               (clatter.core.dispatch:deliver-message
+                app buf
+                (clatter.core.model:make-message :level :system :nick "*log*"
+                                                 :text (format nil "No logs found for ~a" target)))))))
+      ;; Not in a channel/query buffer
+      (t
+       (de.anvi.croatoan:submit
+         (clatter.core.dispatch:deliver-message
+          app buf
+          (clatter.core.model:make-message :level :error :nick "*"
+                                           :text "Use /log in a channel or query buffer, or /log list")))))))
 
 (defun add-to-autojoin (app channel)
   "Add a channel to the autojoin list and save config."
@@ -239,21 +447,30 @@
         (help-lines '("CLatter Commands:"
                       "/join #channel [key] - Join a channel (auto-adds to autojoin)"
                       "/part [#channel] [msg] - Leave channel"
-                      "/autojoin - List autojoin channels"
-                      "/autojoin add #channel - Add channel to autojoin"
-                      "/autojoin remove #channel - Remove from autojoin"
                       "/msg target text - Send private message"
                       "/me action - Send action to current channel"
                       "/nick newnick - Change nickname"
                       "/quit [message] - Disconnect"
+                      "/query nick - Open query with user"
+                      "/whois nick - Query user info"
+                      "/topic [text] - View or set channel topic"
+                      "/kick nick [reason] - Kick user from channel"
+                      "/ban nick - Ban user (nick!*@*)"
+                      "/unban nick - Remove ban"
+                      "/mode [modes] - View or set modes"
+                      "/ctcp nick [cmd] - Send CTCP (VERSION, PING, TIME)"
+                      "/log - View recent logs for current buffer"
+                      "/log search <pattern> - Search logs"
+                      "/log list - List all logged targets"
+                      "/log export [text|json|html] - Export logs to file"
                       "/ns command - Send to NickServ"
                       "/cs command - Send to ChanServ"
-                      "/query nick - Open query with user"
+                      "/autojoin [add|remove] [#channel] - Manage autojoin"
                       "/raw line - Send raw IRC command"
                       ""
-                      "New to IRC? Register your nick:"
-                      "  /ns register <password> <email>"
-                      "Then verify via email link.")))
+                      "Keys: Ctrl-P/N buffers | Ctrl-U/D scroll | Ctrl-W split"
+                      ""
+                      "New to IRC? Register: /ns register <password> <email>")))
     (de.anvi.croatoan:submit
       (dolist (line help-lines)
         (clatter.core.dispatch:deliver-message

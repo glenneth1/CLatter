@@ -1,5 +1,9 @@
 (in-package #:clatter.ui.render)
 
+;; Health check timing
+(defvar *last-health-check* 0 "Universal time of last connection health check")
+(defparameter *health-check-interval* 30 "Seconds between health checks")
+
 ;; Nick color palette - bright colors that work on dark backgrounds
 (defparameter *nick-colors*
   '(:red :green :yellow :blue :magenta :cyan
@@ -159,7 +163,19 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                   (de.anvi.croatoan:add-string win text-display)))
             (incf y)))))))
 
+(defun maybe-check-connection-health ()
+  "Periodically check connection health (called from render loop)."
+  (let ((now (get-universal-time)))
+    (when (> (- now *last-health-check*) *health-check-interval*)
+      (setf *last-health-check* now)
+      (let ((conn clatter.core.commands:*current-connection*))
+        (when conn
+          (clatter.net.irc:irc-check-health conn))))))
+
 (defun render-frame (app)
+  ;; Check connection health periodically (every 30 seconds)
+  (maybe-check-connection-health)
+  
   (unless (dirty-p app)
     (return-from render-frame app))
 
