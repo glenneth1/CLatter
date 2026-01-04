@@ -3,7 +3,7 @@
   :author "Glenn Thompson"
   :license "MIT"
   :version "0.0.1"
-  :depends-on (#:croatoan #:bordeaux-threads #:alexandria #:usocket #:cl+ssl #:flexi-streams)
+  :depends-on (#:croatoan #:bordeaux-threads #:alexandria #:usocket #:cl+ssl #:flexi-streams #:cl-base64)
   :serial t
   :components
   ((:file "src/package")

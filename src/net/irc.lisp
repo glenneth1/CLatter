@@ -11,7 +11,10 @@
    (thread         :initform nil :accessor irc-thread)
    (app            :initarg :app :accessor irc-app)
    (network-id     :initarg :network-id :accessor irc-network-id)
-   (write-lock     :initform (bordeaux-threads:make-lock "irc-write") :accessor irc-write-lock)))
+   (write-lock     :initform (bordeaux-threads:make-lock "irc-write") :accessor irc-write-lock)
+   ;; SASL state
+   (sasl-state     :initform nil :accessor irc-sasl-state)  ; nil :requested :authenticating :done
+   (cap-negotiating :initform nil :accessor irc-cap-negotiating)))
 
 (defun make-irc-connection (app network-id network-config)
   (make-instance 'irc-connection
@@ -69,18 +72,72 @@
         (irc-socket conn) nil
         (irc-state conn) :disconnected))
 
+(defun base64-encode (string)
+  "Encode a string to base64."
+  (cl-base64:string-to-base64-string string))
+
 (defun irc-register (conn)
-  "Send registration commands (PASS, NICK, USER)."
+  "Send registration commands, with SASL if configured."
+  (let* ((cfg (irc-network-config conn))
+         (nick (clatter.core.config:network-config-nick cfg))
+         (sasl (clatter.core.config:network-config-sasl cfg)))
+    (setf (irc-nick conn) nick)
+    (if (and sasl (clatter.core.config:get-network-password cfg))
+        ;; Start CAP negotiation for SASL
+        (progn
+          (setf (irc-cap-negotiating conn) t)
+          (irc-send conn "CAP LS 302"))
+        ;; No SASL - normal registration
+        (irc-send-registration conn))))
+
+(defun irc-send-registration (conn)
+  "Send NICK and USER commands."
   (let* ((cfg (irc-network-config conn))
          (nick (clatter.core.config:network-config-nick cfg))
          (username (or (clatter.core.config:network-config-username cfg) nick))
          (realname (clatter.core.config:network-config-realname cfg))
          (password (clatter.core.config:network-config-password cfg)))
-    (setf (irc-nick conn) nick)
     (when password
       (irc-send conn (clatter.core.protocol:irc-pass password)))
     (irc-send conn (clatter.core.protocol:irc-nick nick))
     (irc-send conn (clatter.core.protocol:irc-user username realname))))
+
+(defun irc-sasl-authenticate (conn)
+  "Send SASL PLAIN authentication."
+  (let* ((cfg (irc-network-config conn))
+         (nick (clatter.core.config:network-config-nick cfg))
+         (password (clatter.core.config:get-network-password cfg))
+         ;; SASL PLAIN format: \0username\0password (base64 encoded)
+         (auth-string (format nil "~c~a~c~a" #\Nul nick #\Nul password))
+         (encoded (base64-encode auth-string)))
+    (setf (irc-sasl-state conn) :authenticating)
+    (irc-send conn (format nil "AUTHENTICATE ~a" encoded))))
+
+(defun irc-handle-cap (conn params)
+  "Handle CAP response for SASL negotiation."
+  (let ((subcommand (second params))
+        (caps (third params)))
+    (cond
+      ;; CAP LS response - check for SASL support
+      ((string-equal subcommand "LS")
+       (if (search "sasl" caps :test #'char-equal)
+           (progn
+             (setf (irc-sasl-state conn) :requested)
+             (irc-send conn "CAP REQ :sasl"))
+           (progn
+             (irc-log-system conn "Server does not support SASL")
+             (irc-send conn "CAP END")
+             (irc-send-registration conn))))
+      ;; CAP ACK - SASL accepted, start authentication
+      ((string-equal subcommand "ACK")
+       (when (search "sasl" caps :test #'char-equal)
+         (irc-send conn "AUTHENTICATE PLAIN")
+         (irc-send-registration conn)))
+      ;; CAP NAK - SASL rejected
+      ((string-equal subcommand "NAK")
+       (irc-log-system conn "SASL capability rejected")
+       (irc-send conn "CAP END")
+       (irc-send-registration conn)))))
 
 (defun irc-log-error (conn format-string &rest args)
   "Log error to server buffer."
@@ -112,15 +169,35 @@
       ((string= command "PING")
        (irc-send conn (clatter.core.protocol:irc-pong (or (first params) ""))))
       
+      ;; CAP response - handle SASL negotiation
+      ((string= command "CAP")
+       (irc-handle-cap conn params))
+      
+      ;; AUTHENTICATE response
+      ((string= command "AUTHENTICATE")
+       (when (string= (first params) "+")
+         (irc-sasl-authenticate conn)))
+      
+      ;; 903 RPL_SASLSUCCESS
+      ((string= command "903")
+       (setf (irc-sasl-state conn) :done)
+       (irc-log-system conn "SASL authentication successful")
+       (irc-send conn "CAP END"))
+      
+      ;; 904, 905 SASL failures
+      ((or (string= command "904") (string= command "905"))
+       (irc-log-error conn "SASL authentication failed: ~a" (second params))
+       (irc-send conn "CAP END"))
+      
       ;; 001 RPL_WELCOME - registration complete
       ((string= command "001")
        (setf (irc-state conn) :connected)
        (irc-log-system conn "Connected to ~a as ~a"
                        (clatter.core.config:network-config-server (irc-network-config conn))
                        (irc-nick conn))
-       ;; NickServ identify if configured
-       (let ((ns-pw (clatter.core.config:network-config-nickserv-pw (irc-network-config conn))))
-         (when ns-pw
+       ;; NickServ identify if configured AND we didn't use SASL
+       (let ((ns-pw (clatter.core.config:get-network-password (irc-network-config conn))))
+         (when (and ns-pw (not (eq (irc-sasl-state conn) :done)))
            (irc-send conn (clatter.core.protocol:irc-privmsg "NickServ"
                                                              (format nil "IDENTIFY ~a" ns-pw)))))
        ;; Autojoin channels
