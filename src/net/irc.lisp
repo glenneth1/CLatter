@@ -236,7 +236,7 @@
          (if (and (> (length raw-text) 1)
                   (char= (char raw-text 0) (code-char 1))
                   (char= (char raw-text (1- (length raw-text))) (code-char 1)))
-             (irc-handle-ctcp conn sender-nick raw-text)
+             (irc-handle-ctcp conn sender-nick target raw-text)
              (irc-deliver-chat conn target sender-nick text))))
       
       ;; NOTICE
@@ -294,7 +294,7 @@
       (t
        (irc-log-system conn "~a ~{~a~^ ~}" command params)))))
 
-(defun irc-handle-ctcp (conn sender-nick raw-text)
+(defun irc-handle-ctcp (conn sender-nick target raw-text)
   "Handle incoming CTCP request and send appropriate reply."
   ;; Strip the \x01 delimiters
   (let* ((ctcp-content (subseq raw-text 1 (1- (length raw-text))))
@@ -306,16 +306,18 @@
                         (subseq ctcp-content (1+ space-pos))
                         "")))
     (cond
-      ;; ACTION - display as /me
+      ;; ACTION - display as /me in the appropriate buffer
       ((string= ctcp-cmd "ACTION")
-       (let* ((app (irc-app conn))
-              (buf (clatter.core.model:find-buffer app 0)))  ; server buffer for now
+       (let ((app (irc-app conn)))
          (de.anvi.croatoan:submit
-           (clatter.core.dispatch:deliver-message
-            app buf
-            (clatter.core.model:make-message :level :chat
-                                             :nick (format nil "* ~a" sender-nick)
-                                             :text ctcp-args)))))
+           (let* ((buf (irc-find-or-create-buffer conn target))
+                  (highlight (search (irc-nick conn) ctcp-args :test #'char-equal)))
+             (clatter.core.dispatch:deliver-message
+              app buf
+              (clatter.core.model:make-message :level :chat
+                                               :nick (format nil "* ~a" sender-nick)
+                                               :text ctcp-args)
+              :highlightp highlight)))))
       ;; VERSION - reply with client info
       ((string= ctcp-cmd "VERSION")
        (irc-send conn (clatter.core.protocol:irc-ctcp-reply
