@@ -310,7 +310,13 @@
       ((string= ctcp-cmd "ACTION")
        (let ((app (irc-app conn)))
          (de.anvi.croatoan:submit
-           (let* ((buf (irc-find-or-create-buffer conn target))
+           ;; For channels, target is the channel name
+           ;; For PMs, target is our nick - use sender-nick for buffer instead
+           (let* ((buffer-target (if (and (> (length target) 0)
+                                          (char= (char target 0) #\#))
+                                     target
+                                     sender-nick))
+                  (buf (irc-find-or-create-buffer conn buffer-target))
                   (highlight (search (irc-nick conn) ctcp-args :test #'char-equal)))
              (clatter.core.dispatch:deliver-message
               app buf
@@ -343,7 +349,13 @@
   "Deliver a PRIVMSG to the appropriate buffer."
   (let ((app (irc-app conn)))
     (de.anvi.croatoan:submit
-      (let* ((buf (irc-find-or-create-buffer conn target))
+      ;; For channels, target is the channel name
+      ;; For PMs, target is our nick - use sender-nick for buffer instead
+      (let* ((buffer-target (if (and (> (length target) 0)
+                                     (char= (char target 0) #\#))
+                                target
+                                sender-nick))
+             (buf (irc-find-or-create-buffer conn buffer-target))
              (highlight (search (irc-nick conn) text :test #'char-equal)))
         (clatter.core.dispatch:deliver-message
          app buf
