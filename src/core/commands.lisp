@@ -232,6 +232,11 @@
      (handle-log-command app args)
      t)
     
+    ;; /dcc - DCC commands
+    ((string= cmd "DCC")
+     (handle-dcc-command app conn args)
+     t)
+    
     ;; Unknown command
     (t nil)))
 
@@ -467,6 +472,11 @@
                       "/cs command - Send to ChanServ"
                       "/autojoin [add|remove] [#channel] - Manage autojoin"
                       "/raw line - Send raw IRC command"
+                      "/dcc chat <nick> - Initiate DCC chat"
+                      "/dcc send <nick> <file> - Send file via DCC"
+                      "/dcc list - List DCC connections"
+                      "/dcc accept [id] - Accept DCC offer"
+                      "/dcc reject [id] - Reject DCC offer"
                       ""
                       "Keys: Ctrl-P/N buffers | Ctrl-U/D scroll | Ctrl-W split"
                       ""
@@ -476,6 +486,137 @@
         (clatter.core.dispatch:deliver-message
          app buf
          (clatter.core.model:make-message :level :system :nick "*help*" :text line))))))
+
+(defun handle-dcc-command (app conn args)
+  "Handle /dcc commands.
+   /dcc chat <nick> - initiate DCC chat
+   /dcc send <nick> <file> - send a file
+   /dcc list - list pending/active DCC connections
+   /dcc accept [id] - accept pending DCC offer
+   /dcc reject [id] - reject pending DCC offer
+   /dcc close [id] - close DCC connection"
+  (declare (ignore conn))
+  (let ((manager clatter.net.dcc:*dcc-manager*))
+    (unless manager
+      (de.anvi.croatoan:submit
+        (clatter.core.dispatch:deliver-message
+         app (clatter.core.model:find-buffer app 0)
+         (clatter.core.model:make-message :level :error :text "DCC not initialized")))
+      (return-from handle-dcc-command))
+    (multiple-value-bind (subcmd rest) (split-first-word args)
+      (let ((subcmd-up (string-upcase subcmd)))
+        (cond
+          ;; /dcc chat <nick>
+          ((string= subcmd-up "CHAT")
+           (multiple-value-bind (nick rest2) (split-first-word rest)
+             (declare (ignore rest2))
+             (if (> (length nick) 0)
+                 (clatter.net.dcc:dcc-initiate-chat manager nick)
+                 (dcc-show-usage app "Usage: /dcc chat <nick>"))))
+          
+          ;; /dcc send <nick> <file>
+          ((string= subcmd-up "SEND")
+           (multiple-value-bind (nick filepath) (split-first-word rest)
+             (if (and (> (length nick) 0) (> (length filepath) 0))
+                 (clatter.net.dcc:dcc-initiate-send manager nick filepath)
+                 (dcc-show-usage app "Usage: /dcc send <nick> <filepath>"))))
+          
+          ;; /dcc list
+          ((string= subcmd-up "LIST")
+           (dcc-show-list app manager))
+          
+          ;; /dcc accept [id]
+          ((string= subcmd-up "ACCEPT")
+           (dcc-accept-command app manager rest))
+          
+          ;; /dcc reject [id]
+          ((string= subcmd-up "REJECT")
+           (dcc-reject-command app manager rest))
+          
+          ;; /dcc close [id]
+          ((string= subcmd-up "CLOSE")
+           (dcc-close-command app manager rest))
+          
+          ;; Unknown or no subcommand - show help
+          (t
+           (dcc-show-usage app "Usage: /dcc [chat|send|list|accept|reject|close] ...")))))))
+
+(defun dcc-show-usage (app text)
+  "Show DCC usage message."
+  (de.anvi.croatoan:submit
+    (clatter.core.dispatch:deliver-message
+     app (clatter.core.model:find-buffer app 0)
+     (clatter.core.model:make-message :level :system :text text))))
+
+(defun dcc-show-list (app manager)
+  "Show list of DCC connections."
+  (let ((connections (clatter.net.dcc:dcc-manager-list manager)))
+    (de.anvi.croatoan:submit
+      (let ((buf (clatter.core.model:find-buffer app 0)))
+        (if connections
+            (progn
+              (clatter.core.dispatch:deliver-message
+               app buf
+               (clatter.core.model:make-message :level :system :text "DCC connections:"))
+              (dolist (conn connections)
+                (clatter.core.dispatch:deliver-message
+                 app buf
+                 (clatter.core.model:make-message 
+                  :level :system 
+                  :text (format nil "  [~a] ~a" 
+                                (clatter.net.dcc:dcc-id conn)
+                                (clatter.net.dcc:dcc-status-string conn))))))
+            (clatter.core.dispatch:deliver-message
+             app buf
+             (clatter.core.model:make-message :level :system :text "No DCC connections")))))))
+
+(defun dcc-accept-command (app manager id-str)
+  "Accept a pending DCC connection."
+  (let* ((id (if (> (length id-str) 0)
+                 (ignore-errors (parse-integer id-str))
+                 ;; If no ID, accept first pending
+                 (let ((pending (clatter.net.dcc:dcc-manager-pending manager)))
+                   (when pending (clatter.net.dcc:dcc-id (first pending))))))
+         (conn (when id (clatter.net.dcc:dcc-manager-find manager id))))
+    (cond
+      ((null conn)
+       (dcc-show-usage app "No pending DCC connection to accept"))
+      ((not (eq (clatter.net.dcc:dcc-state conn) :pending))
+       (dcc-show-usage app (format nil "DCC ~a is not pending (state=~a)" 
+                                   id (clatter.net.dcc:dcc-state conn))))
+      (t
+       (clatter.net.dcc:dcc-accept conn manager)))))
+
+(defun dcc-reject-command (app manager id-str)
+  "Reject a pending DCC connection."
+  (let* ((id (if (> (length id-str) 0)
+                 (ignore-errors (parse-integer id-str))
+                 (let ((pending (clatter.net.dcc:dcc-manager-pending manager)))
+                   (when pending (clatter.net.dcc:dcc-id (first pending))))))
+         (conn (when id (clatter.net.dcc:dcc-manager-find manager id))))
+    (cond
+      ((null conn)
+       (dcc-show-usage app "No pending DCC connection to reject"))
+      ((not (eq (clatter.net.dcc:dcc-state conn) :pending))
+       (dcc-show-usage app (format nil "DCC ~a is not pending" id)))
+      (t
+       (clatter.net.dcc:dcc-reject conn manager)))))
+
+(defun dcc-close-command (app manager id-str)
+  "Close a DCC connection."
+  (let* ((id (when (> (length id-str) 0)
+               (ignore-errors (parse-integer id-str))))
+         (conn (when id (clatter.net.dcc:dcc-manager-find manager id))))
+    (if conn
+        (progn
+          (clatter.net.dcc:dcc-close conn)
+          (clatter.net.dcc:dcc-manager-remove manager id)
+          (de.anvi.croatoan:submit
+            (clatter.core.dispatch:deliver-message
+             app (clatter.core.model:find-buffer app 0)
+             (clatter.core.model:make-message :level :system 
+                                              :text (format nil "DCC ~a closed" id)))))
+        (dcc-show-usage app "Usage: /dcc close <id>"))))
 
 (defun handle-input-line (app conn line)
   "Handle a line of input - either command or chat message."
@@ -495,12 +636,46 @@
         (let* ((buf (clatter.core.model:active-buffer app))
                (target (clatter.core.model:buffer-title buf))
                (kind (clatter.core.model:buffer-kind buf)))
-          (when (and conn (member kind '(:channel :query)) (> (length target) 0))
-            (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-privmsg target line))
-            ;; Echo locally
-            (de.anvi.croatoan:submit
-              (clatter.core.dispatch:deliver-message
-               app buf
-               (clatter.core.model:make-message :level :chat
-                                                :nick (clatter.net.irc:irc-nick conn)
-                                                :text line))))))))
+          (cond
+            ;; Regular IRC channel/query
+            ((and conn (member kind '(:channel :query)) (> (length target) 0))
+             (clatter.net.irc:irc-send conn (clatter.core.protocol:irc-privmsg target line))
+             ;; Echo locally
+             (de.anvi.croatoan:submit
+               (clatter.core.dispatch:deliver-message
+                app buf
+                (clatter.core.model:make-message :level :chat
+                                                 :nick (clatter.net.irc:irc-nick conn)
+                                                 :text line))))
+            ;; DCC chat buffer
+            ((eq kind :dcc-chat)
+             (handle-dcc-chat-input app conn buf line)))))))
+
+(defun handle-dcc-chat-input (app conn buf line)
+  "Handle input in a DCC chat buffer."
+  (handler-case
+      (let* ((manager clatter.net.dcc:*dcc-manager*)
+             (dcc-conn (when manager 
+                         (clatter.net.dcc:find-dcc-connection-for-buffer manager buf))))
+        (when dcc-conn
+          (if (clatter.net.dcc:dcc-chat-send dcc-conn line)
+              ;; Echo locally with our nick
+              (let ((my-nick (if conn (clatter.net.irc:irc-nick conn) "me")))
+                (de.anvi.croatoan:submit
+                  (clatter.core.dispatch:deliver-message
+                   app buf
+                   (clatter.core.model:make-message :level :chat
+                                                    :nick my-nick
+                                                    :text line))))
+              ;; Send failed
+              (de.anvi.croatoan:submit
+                (clatter.core.dispatch:deliver-message
+                 app buf
+                 (clatter.core.model:make-message :level :error
+                                                  :text "DCC send failed - connection may be closed"))))))
+    (error (e)
+      (de.anvi.croatoan:submit
+        (clatter.core.dispatch:deliver-message
+         app buf
+         (clatter.core.model:make-message :level :error
+                                          :text (format nil "DCC error: ~a" e)))))))

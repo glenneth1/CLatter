@@ -60,13 +60,20 @@
 - [ ] SQLite message storage
 - [ ] Web interface option (stretch goal)
 
+*** v0.5 - DCC Support
+- [X] DCC CHAT - Direct client-to-client messaging
+- [X] DCC SEND - File transfers (send and receive)
+- [X] DCC notifications in current buffer with server buffer highlight
+- [X] DCC connection management (/dcc list, accept, reject, close)
+- [X] Automatic download directory (~/Downloads/CLatter/)
+
 ** Ideas / Wishlist
 
 - [ ] Plugin/scripting system (maybe via Lisp eval)
 - [ ] Theming support (color schemes)
 - [ ] Mouse support for buffer switching
 - [X] Split-pane view for multiple channels
-- [ ] DCC file transfer support
+- [X] DCC file transfer support
 - [X] IRCv3 capabilities (SASL PLAIN authentication)
 - [ ] Matrix bridge support
 - [ ] Spell checking integration

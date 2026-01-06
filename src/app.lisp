@@ -36,7 +36,9 @@
     ;; Set current connection and config for command system
     (setf clatter.core.commands:*current-config* cfg)
     (when *connections*
-      (setf *current-connection* (first *connections*)))
+      (setf *current-connection* (first *connections*))
+      ;; Initialize DCC manager with app and first connection
+      (clatter.net.dcc:make-dcc-manager app (first *connections*)))
     
     ;; enter UI (blocks until quit)
     (run-tui app)

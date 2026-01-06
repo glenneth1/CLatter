@@ -16,6 +16,7 @@
    (:file "src/core/dispatch")
    (:file "src/net/client")
    (:file "src/net/irc")
+   (:file "src/net/dcc")
    (:file "src/core/commands")
    (:file "src/ui/input")
    (:file "src/ui/render")

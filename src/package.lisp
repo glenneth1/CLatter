@@ -145,7 +145,32 @@
    #:irc-state #:irc-nick #:irc-network-config
    #:irc-reconnect-enabled
    #:irc-check-health
+   #:irc-app
    #:start-irc-connection))
+
+(defpackage #:clatter.net.dcc
+  (:use #:cl)
+  (:export
+   ;; Manager
+   #:dcc-manager #:make-dcc-manager #:*dcc-manager*
+   #:dcc-manager-add #:dcc-manager-remove #:dcc-manager-find
+   #:dcc-manager-list #:dcc-manager-pending #:dcc-manager-connections
+   ;; Connection classes
+   #:dcc-connection #:dcc-chat #:dcc-send
+   ;; Accessors
+   #:dcc-id #:dcc-nick #:dcc-state #:dcc-direction #:dcc-buffer
+   #:dcc-filename #:dcc-filesize #:dcc-bytes-transferred
+   #:dcc-type-string #:dcc-status-string
+   ;; Operations
+   #:dcc-accept #:dcc-reject #:dcc-close
+   #:dcc-chat-send
+   #:find-dcc-connection-for-buffer
+   ;; Initiating connections
+   #:dcc-initiate-chat #:dcc-initiate-send
+   ;; Handling offers
+   #:dcc-handle-offer
+   ;; Utilities
+   #:ip-integer-to-string #:ip-string-to-integer))
 
 (defpackage #:clatter.app
   (:use #:cl)

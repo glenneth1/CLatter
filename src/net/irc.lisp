@@ -242,10 +242,16 @@
       ;; NOTICE
       ((string= command "NOTICE")
        (let* ((target (first params))
-              (text (clatter.core.protocol:strip-irc-formatting (second params)))
+              (raw-text (second params))
+              (text (clatter.core.protocol:strip-irc-formatting raw-text))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (sender-nick (or (clatter.core.protocol:prefix-nick parsed-prefix) "*")))
-         (irc-deliver-notice conn target sender-nick text)))
+         ;; Check for CTCP in NOTICE too (some clients send DCC via NOTICE)
+         (if (and (> (length raw-text) 1)
+                  (char= (char raw-text 0) (code-char 1))
+                  (char= (char raw-text (1- (length raw-text))) (code-char 1)))
+             (irc-handle-ctcp conn sender-nick target raw-text)
+             (irc-deliver-notice conn target sender-nick text))))
       
       ;; JOIN
       ((string= command "JOIN")
@@ -341,6 +347,19 @@
                                  year month day hour min sec))))
          (irc-send conn (clatter.core.protocol:irc-ctcp-reply sender-nick "TIME" time-str))
          (irc-log-system conn "CTCP TIME from ~a" sender-nick)))
+      ;; DCC - handle DCC offers
+      ((string= ctcp-cmd "DCC")
+       (let ((manager clatter.net.dcc:*dcc-manager*))
+         (when manager
+           ;; Parse DCC type and args: "CHAT chat ip port" or "SEND file ip port size"
+           (let* ((space-pos2 (position #\Space ctcp-args))
+                  (dcc-type (if space-pos2
+                                (subseq ctcp-args 0 space-pos2)
+                                ctcp-args))
+                  (dcc-rest (if space-pos2
+                                (subseq ctcp-args (1+ space-pos2))
+                                "")))
+             (clatter.net.dcc:dcc-handle-offer manager sender-nick dcc-type dcc-rest)))))
       ;; Unknown CTCP - just log it
       (t
        (irc-log-system conn "CTCP ~a from ~a: ~a" ctcp-cmd sender-nick ctcp-args)))))

@@ -21,6 +21,7 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 - *Scrollback* - Page Up/Down to scroll through message history
 - *Split-Pane View* - View two channels side-by-side
 - *CTCP Support* - Responds to VERSION, PING, TIME requests
+- *DCC Support* - Direct client-to-client chat and file transfers
 - *Message Logging* - Automatic logging to =~/.local/share/clatter/logs/=
 - *Log Search* - Search through message history with ~/log search~
 
@@ -127,6 +128,12 @@ CLatter will decrypt the file using GPG and look up the password by matching the
 | ~/log search pattern~        | Search logs for pattern                  |
 | ~/log list~                  | List all logged targets                  |
 | ~/log export [text/json/html]~ | Export logs to file                    |
+| ~/dcc chat nick~             | Initiate DCC chat with user              |
+| ~/dcc send nick file~        | Send file via DCC                        |
+| ~/dcc accept [id]~           | Accept pending DCC offer                 |
+| ~/dcc reject [id]~           | Reject pending DCC offer                 |
+| ~/dcc list~                  | List DCC connections                     |
+| ~/dcc close [id]~            | Close DCC connection                     |
 | ~/raw line~                  | Send raw IRC command                     |
 | ~/help~                      | Show help                                |
 
