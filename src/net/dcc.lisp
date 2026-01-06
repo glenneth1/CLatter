@@ -309,36 +309,61 @@
   "Receive a file via DCC SEND (runs in thread)."
   (handler-case
       (let* ((ip-str (ip-integer-to-string (dcc-remote-ip conn)))
-             (port (dcc-remote-port conn))
-             (socket (usocket:socket-connect ip-str port :element-type '(unsigned-byte 8)))
-             (stream (usocket:socket-stream socket))
-             (download-dir (get-download-directory))
-             (filepath (merge-pathnames (dcc-filename conn) download-dir))
-             (file-stream (open filepath :direction :output 
-                                        :element-type '(unsigned-byte 8)
-                                        :if-exists :supersede)))
-        (setf (dcc-socket conn) socket
-              (dcc-stream conn) stream
-              (dcc-filepath conn) filepath
-              (dcc-file-stream conn) file-stream
-              (dcc-state conn) :active)
-        (dcc-log-system manager "DCC RECV ~a from ~a started" 
-                        (dcc-filename conn) (dcc-nick conn))
-        ;; Receive loop
-        (let ((buffer (make-array *dcc-buffer-size* :element-type '(unsigned-byte 8)))
-              (total-received 0))
-          (loop while (< total-received (dcc-filesize conn))
-                for bytes-read = (read-sequence buffer stream)
-                while (> bytes-read 0)
-                do (write-sequence buffer file-stream :end bytes-read)
-                   (incf total-received bytes-read)
-                   (setf (dcc-bytes-transferred conn) total-received)
-                   ;; Send ACK (4-byte network order)
-                   (send-dcc-ack stream total-received))
-          (close file-stream)
-          (setf (dcc-file-stream conn) nil)
-          (dcc-log-system manager "DCC RECV ~a complete (~a bytes)" 
-                          (dcc-filename conn) total-received)))
+             (port (dcc-remote-port conn)))
+        (dcc-log-system manager "DCC RECV connecting to ~a:~a" ip-str port)
+        (let* ((socket (usocket:socket-connect ip-str port 
+                                               :element-type '(unsigned-byte 8)))
+               (raw-stream (usocket:socket-stream socket))
+               (download-dir (get-download-directory))
+               (filepath (merge-pathnames (dcc-filename conn) download-dir))
+               (file-stream (open filepath :direction :output 
+                                          :element-type '(unsigned-byte 8)
+                                          :if-exists :supersede)))
+          (setf (dcc-socket conn) socket
+                (dcc-stream conn) raw-stream
+                (dcc-filepath conn) filepath
+                (dcc-file-stream conn) file-stream
+                (dcc-state conn) :active)
+          (dcc-log-system manager "DCC RECV ~a from ~a started (expecting ~a bytes)" 
+                          (dcc-filename conn) (dcc-nick conn) (dcc-filesize conn))
+          ;; Receive loop - read available bytes using the underlying fd-stream
+          (let ((buffer (make-array *dcc-buffer-size* :element-type '(unsigned-byte 8)))
+                (total-received 0)
+                (filesize (dcc-filesize conn)))
+            (block receive-loop
+              (loop while (< total-received filesize)
+                    do ;; Wait for data with timeout
+                       (unless (usocket:wait-for-input socket :timeout 30 :ready-only t)
+                         (dcc-log-system manager "DCC RECV timeout waiting for data")
+                         (return-from receive-loop))
+                       ;; Read available bytes one at a time (read-byte blocks properly)
+                       (let ((bytes-read 0)
+                             (max-read (min *dcc-buffer-size* (- filesize total-received))))
+                         ;; Read first byte (blocks until available)
+                         (let ((byte (read-byte raw-stream nil nil)))
+                           (unless byte
+                             (dcc-log-system manager "DCC RECV got EOF after ~a bytes" total-received)
+                             (return-from receive-loop))
+                           (setf (aref buffer 0) byte)
+                           (incf bytes-read))
+                         ;; Read remaining available bytes without blocking
+                         (loop while (and (< bytes-read max-read)
+                                          (listen raw-stream))
+                               for byte = (read-byte raw-stream nil nil)
+                               while byte
+                               do (setf (aref buffer bytes-read) byte)
+                                  (incf bytes-read))
+                         ;; Write to file
+                         (write-sequence buffer file-stream :end bytes-read)
+                         (force-output file-stream)
+                         (incf total-received bytes-read)
+                         (setf (dcc-bytes-transferred conn) total-received)
+                         ;; Send ACK (4-byte network order)
+                         (send-dcc-ack raw-stream total-received))))
+            (close file-stream)
+            (setf (dcc-file-stream conn) nil)
+            (dcc-log-system manager "DCC RECV ~a complete (~a bytes)" 
+                            (dcc-filename conn) total-received))))
     (error (e)
       (setf (dcc-state conn) :error
             (dcc-error-message conn) (format nil "~a" e))
@@ -357,15 +382,14 @@
               (dcc-state conn) :active)
         (dcc-log-system manager "DCC SEND ~a to ~a started" 
                         (dcc-filename conn) (dcc-nick conn))
-        ;; Send loop
+        ;; Send loop - send all data without waiting for ACKs
+        ;; (many clients don't send ACKs until after receiving all data)
         (loop for bytes-read = (read-sequence buffer file-stream)
               while (> bytes-read 0)
               do (write-sequence buffer stream :end bytes-read)
-                 (force-output stream)
                  (incf total-sent bytes-read)
-                 (setf (dcc-bytes-transferred conn) total-sent)
-                 ;; Wait for ACK
-                 (receive-dcc-ack stream))
+                 (setf (dcc-bytes-transferred conn) total-sent))
+        (force-output stream)
         (close file-stream)
         (setf (dcc-file-stream conn) nil)
         (dcc-log-system manager "DCC SEND ~a complete (~a bytes)" 
@@ -466,8 +490,12 @@
 
 (defun dcc-send-listen (conn manager listener)
   "Wait for incoming connection on DCC SEND listener."
+  (dcc-log-system manager "DCC SEND waiting for connection on port ~a..." 
+                  (usocket:get-local-port listener))
   (handler-case
       (let ((socket (usocket:socket-accept listener :element-type '(unsigned-byte 8))))
+        (dcc-log-system manager "DCC SEND connection accepted from ~a" 
+                        (usocket:get-peer-address socket))
         (usocket:socket-close listener)
         (setf (dcc-socket conn) socket
               (dcc-stream conn) (usocket:socket-stream socket))
