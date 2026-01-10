@@ -553,24 +553,14 @@
                         (subseq ctcp-content (1+ space-pos))
                         "")))
     (cond
-      ;; ACTION - display as /me in the appropriate buffer
+      ;; ACTION - dispatch as CLOS event
       ((string= ctcp-cmd "ACTION")
-       (let ((app (irc-app conn)))
-         (de.anvi.croatoan:submit
-           ;; For channels, target is the channel name
-           ;; For PMs, target is our nick - use sender-nick for buffer instead
-           (let* ((buffer-target (if (and (> (length target) 0)
-                                          (char= (char target 0) #\#))
-                                     target
-                                     sender-nick))
-                  (buf (irc-find-or-create-buffer conn buffer-target))
-                  (highlight (search (irc-nick conn) ctcp-args :test #'char-equal)))
-             (clatter.core.dispatch:deliver-message
-              app buf
-              (clatter.core.model:make-message :level :chat
-                                               :nick (format nil "* ~a" sender-nick)
-                                               :text ctcp-args)
-              :highlightp highlight)))))
+       (dispatch-event conn
+         (make-instance 'clatter.core.events:action-event
+                        :connection conn
+                        :sender sender-nick
+                        :target target
+                        :text ctcp-args)))
       ;; VERSION - reply with client info
       ((string= ctcp-cmd "VERSION")
        (irc-send conn (clatter.core.protocol:irc-ctcp-reply
