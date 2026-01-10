@@ -179,12 +179,6 @@
   (:import-from #:clatter.ui.keymap #:install-keybindings)
   (:export #:run-tui #:create-layout-windows))
 
-(defpackage #:clatter.net.client
-  (:use #:cl)
-  (:import-from #:clatter.core.model #:find-buffer)
-  (:import-from #:clatter.core.dispatch #:deliver-message)
-  (:export #:start-demo-net-thread))
-
 (defpackage #:clatter.net.irc
   (:use #:cl)
   (:export

@@ -241,15 +241,11 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
               (when (< row content-h)
                 (let* ((i (car pair))
                        (buf (cdr pair))
-                       (marker (if (= i current-id) ">" " "))
-                       (unread (buffer-unread-count buf))
-                       (hi (buffer-highlight-count buf))
-                       ;; Indent channels under their server
-                       (indent (if (eq (buffer-kind buf) :server) "" "  "))
-                       (line (format nil "~a~a~a~@[ (~d)~]~@[ !~d~]"
-                                     marker indent (buffer-title buf)
-                                     (and (> unread 0) unread)
-                                     (and (> hi 0) hi))))
+                       (current-p (= i current-id))
+                       ;; Use CLOS method for indent based on buffer type
+                       (indent (if (typep buf 'clatter.core.model:server-buffer) "" "  "))
+                       ;; Use CLOS method for rendering buffer list item
+                       (line (render-buflist-item buf current-p indent)))
                   (%draw-line wbuf (1+ row) 1 (subseq line 0 (min (length line) content-w)))
                   (incf row)))))))
       ;; Store visual order for navigation (reversed because we pushed)
@@ -297,7 +293,7 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                (content-w (- (de.anvi.croatoan:width wnicklist) 2))
                (content-h (- (de.anvi.croatoan:height wnicklist) 2))
                (row 0))
-          (when (and buf (eq (buffer-kind buf) :channel))
+          (when (and buf (buffer-has-members-p buf))
             (let ((nick-list nil))
               (maphash (lambda (nick val)
                          (declare (ignore val))
