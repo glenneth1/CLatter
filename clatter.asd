@@ -14,6 +14,7 @@
    (:file "src/core/events")
    (:file "src/core/logging")
    (:file "src/core/dispatch")
+   (:file "src/core/handlers")
    (:file "src/net/client")
    (:file "src/net/irc")
    (:file "src/net/dcc")

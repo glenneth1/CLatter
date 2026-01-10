@@ -17,7 +17,7 @@ run: $(TARGET)
 
 clean:
 	rm -f $(TARGET)
-	rm -rf ~/.cache/common-lisp/sbcl-*/$(shell pwd)
+	rm -rf ~/.cache/common-lisp/
 
 # Development: run without building executable
 dev:

@@ -155,6 +155,25 @@
         when (and buf (string-equal (buffer-title buf) title))
         return buf))
 
+(defun find-buffer-by-network (app network-id target)
+  "Find a buffer by network and target (channel/nick or :server).
+   TARGET can be a string (channel/nick) or :server for the server buffer."
+  (loop for buf across (app-buffers app)
+        when (and buf
+                  (equal (buffer-network buf) network-id)
+                  (if (eq target :server)
+                      (eq (buffer-kind buf) :server)
+                      (string-equal (buffer-title buf) target)))
+        return buf))
+
+(defun create-buffer (app network-id title kind)
+  "Create a new buffer for a network. Returns the buffer."
+  (let* ((buffers (app-buffers app))
+         (buf (make-buffer :id (length buffers) :kind kind :title title :network network-id)))
+    (vector-push-extend buf buffers)
+    (mark-dirty app :buflist)
+    buf))
+
 (defun ignore-nick (app nick)
   "Add a nick to the ignore list."
   (setf (gethash nick (app-ignore-list app)) t))
@@ -191,3 +210,35 @@
       (dolist (nick stale)
         (remhash nick typing-users))
       (sort nicks #'string-lessp))))
+
+;;;; ============================================================
+;;;; Buffer Member Management
+;;;; ============================================================
+
+(defun buffer-add-member (buf nick)
+  "Add a nick to the buffer's member list."
+  (when (and buf nick)
+    (setf (gethash nick (buffer-members buf)) t)))
+
+(defun buffer-remove-member (buf nick)
+  "Remove a nick from the buffer's member list."
+  (when (and buf nick)
+    (remhash nick (buffer-members buf))))
+
+(defun buffer-has-member-p (buf nick)
+  "Check if nick is in the buffer's member list."
+  (when (and buf nick)
+    (gethash nick (buffer-members buf))))
+
+(defun buffer-member-list (buf)
+  "Return a sorted list of all members in the buffer."
+  (when buf
+    (let ((nicks nil))
+      (maphash (lambda (k v) (declare (ignore v)) (push k nicks))
+               (buffer-members buf))
+      (sort nicks #'string-lessp))))
+
+(defun app-buffers-list (app)
+  "Return a list of all non-nil buffers in the app."
+  (loop for buf across (app-buffers app)
+        when buf collect buf))

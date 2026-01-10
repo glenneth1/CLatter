@@ -26,7 +26,9 @@
    #:find-buffer #:current-buffer #:active-buffer
    #:get-buffer-connection #:get-current-connection
    #:remove-buffer #:find-buffer-by-title
-   #:app-ignore-list #:ignore-nick #:unignore-nick #:ignored-p #:list-ignored))
+   #:app-ignore-list #:ignore-nick #:unignore-nick #:ignored-p #:list-ignored
+   #:buffer-add-member #:buffer-remove-member #:buffer-has-member-p #:buffer-member-list
+   #:app-buffers-list #:find-buffer-by-network #:create-buffer))
 
 (defpackage #:clatter.core.config
   (:use #:cl)
@@ -68,7 +70,37 @@
 
 (defpackage #:clatter.core.events
   (:use #:cl)
-  (:export #:ev #:ev-type #:ev-plist))
+  (:export
+   ;; Base class and generic function
+   #:irc-event #:handle-event
+   #:event-connection #:event-timestamp #:event-raw-message
+   ;; Connection events
+   #:connect-event #:event-server #:event-nick
+   #:disconnect-event #:event-reason
+   ;; Message events
+   #:message-event #:event-sender #:event-target #:event-text #:event-server-time
+   #:privmsg-event #:notice-event #:action-event
+   ;; Channel events
+   #:channel-event #:event-channel
+   #:join-event #:event-account #:event-realname
+   #:part-event #:event-message
+   #:quit-event
+   #:kick-event #:event-kicked-nick
+   #:nick-event #:event-old-nick #:event-new-nick
+   #:topic-event #:event-topic
+   #:mode-event #:event-setter #:event-modes
+   ;; Presence events
+   #:away-event
+   ;; CTCP events
+   #:ctcp-event #:event-command #:event-args
+   #:dcc-offer-event #:event-dcc-type #:event-filename #:event-ip #:event-port #:event-filesize
+   ;; Server events
+   #:names-event #:event-names
+   #:numeric-event #:event-numeric #:event-params
+   ;; Typing events
+   #:typing-event #:event-state
+   ;; Legacy compatibility
+   #:ev #:ev-type #:ev-plist))
 
 (defpackage #:clatter.core.logging
   (:use #:cl)
@@ -163,7 +195,7 @@
    #:irc-send-typing
    #:irc-request-chathistory
    #:irc-send-labeled
-   #:irc-app
+   #:irc-app #:irc-network-id
    #:start-irc-connection))
 
 (defpackage #:clatter.net.dcc
