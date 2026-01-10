@@ -239,8 +239,9 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
               when buf
               do (let ((net (or (buffer-network buf) "unknown")))
                    (unless (gethash net networks)
+                     (setf (gethash net networks) nil)  ; Initialize empty list
                      (push (cons net i) network-order))  ; Track network order by first appearance
-                   (push (cons i buf) (gethash net networks nil))))
+                   (push (cons i buf) (gethash net networks))))
         ;; Sort networks by their server buffer index (first appearance)
         (setf network-order (sort network-order #'< :key #'cdr))
         ;; Render each network's buffers in order
