@@ -23,7 +23,13 @@
     (let ((buf (current-buffer app)))
       (when buf
         (setf (clatter.core.model:buffer-unread-count buf) 0)
-        (setf (clatter.core.model:buffer-highlight-count buf) 0)))
+        (setf (clatter.core.model:buffer-highlight-count buf) 0)
+        ;; Auto-refresh member list for channels
+        (when (eq (buffer-kind buf) :channel)
+          (let ((conn clatter.core.commands:*current-connection*))
+            (when conn
+              (clatter.net.irc:irc-send conn 
+                (format nil "NAMES ~a" (buffer-title buf))))))))
     (mark-dirty app :chat :buflist :status :input)))
 
 (defun %buf-next (app)

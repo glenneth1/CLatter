@@ -34,7 +34,7 @@
    #:network-config-tls #:network-config-nick #:network-config-username
    #:network-config-realname #:network-config-password #:network-config-nickserv-pw
    #:network-config-sasl #:network-config-client-cert #:network-config-autojoin #:network-config-autoconnect
-   #:config #:make-config #:config-networks #:config-default-network #:config-time-format
+   #:config #:make-config #:config-networks #:config-default-network #:config-time-format #:config-buflist-width
    #:load-config #:save-config #:find-network-config #:add-network-config
    #:default-libera-config #:get-network-password #:get-server-password #:lookup-authinfo))
 
@@ -119,7 +119,8 @@
                 #:app-buffers #:app-current-buffer-id #:buffer-scroll-offset #:dirty-p
                 #:app-quit-requested #:ui-screen
                 #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
-                #:buffer-unread-count #:buffer-highlight-count)
+                #:buffer-unread-count #:buffer-highlight-count
+                #:buffer-kind #:buffer-title)
   (:import-from #:clatter.ui.input
                 #:input-insert-char #:input-backspace #:input-delete
                 #:input-move-left #:input-move-right #:input-move-home #:input-move-end

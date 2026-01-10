@@ -14,6 +14,10 @@
          (networks (config-networks cfg))
          (app (make-app)))
     
+    ;; Apply UI settings from config
+    (setf (clatter.core.model:ui-buflist-w (clatter.core.model:app-ui app))
+          (clatter.core.config:config-buflist-width cfg))
+    
     ;; If no networks configured, prompt for nick and create default Libera config
     (when (null networks)
       (let* ((nick (prompt-for-nick))
