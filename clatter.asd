@@ -10,6 +10,7 @@
    (:file "src/core/ring")
    (:file "src/core/model")
    (:file "src/core/config")
+   (:file "src/core/theme")
    (:file "src/core/protocol")
    (:file "src/core/events")
    (:file "src/core/logging")

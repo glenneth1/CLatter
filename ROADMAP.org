@@ -93,7 +93,7 @@
 
 - [ ] Automatic terminal resize detection (SIGWINCH handling)
 - [ ] Plugin/scripting system (maybe via Lisp eval)
-- [ ] Theming support (color schemes)
+- [X] Theming support (color schemes, custom themes in ~/.config/clatter/themes/)
 - [ ] Mouse support for buffer switching
 - [X] Split-pane view for multiple channels
 - [X] DCC file transfer support

@@ -296,7 +296,68 @@ Or with authinfo/plain text:
 | Ctrl-]      | Switch active pane        |
 | Ctrl-R      | Set right pane buffer     |
 | Ctrl-X      | Swap panes                |
+| Ctrl-O      | Toggle nick list panel    |
 | F10         | Quit                      |
+
+** Theming
+
+CLatter supports custom themes loaded from =~/.config/clatter/themes/=. The default theme is Tokyo Night with purple/magenta borders and rounded corners.
+
+*** Creating a Custom Theme
+
+Create a file in =~/.config/clatter/themes/= (e.g., =my-theme.lisp=):
+
+#+begin_src lisp
+;;; CLatter Theme: my-theme
+;;; Place in ~/.config/clatter/themes/my-theme.lisp
+
+(:name "my-theme"
+ :nick-colors (:magenta :cyan :green :yellow :red :white)
+ :join-color :green
+ :part-color :yellow
+ :quit-color :yellow
+ :kick-color :red
+ :mode-color :magenta
+ :topic-color :cyan
+ :notice-color :cyan
+ :system-color :blue
+ :error-color :red
+ :highlight-fg :magenta
+ :highlight-bold t
+ :timestamp-color :blue
+ :status-fg :cyan
+ :status-bg :blue
+ :buflist-fg :white
+ :buflist-selected-fg :magenta
+ :buflist-unread-fg :cyan
+ :buflist-highlight-fg :magenta
+ :border-fg :magenta)
+#+end_src
+
+*** Available Colors
+
+Standard ncurses colors: =:black=, =:red=, =:green=, =:yellow=, =:blue=, =:magenta=, =:cyan=, =:white=
+
+*** Theme Properties
+
+| Property              | Description                                    |
+|-----------------------+------------------------------------------------|
+| =:nick-colors=        | List of colors for nick colorization           |
+| =:join-color=         | Color for join messages                        |
+| =:part-color=         | Color for part messages                        |
+| =:quit-color=         | Color for quit messages                        |
+| =:kick-color=         | Color for kick messages                        |
+| =:mode-color=         | Color for mode change messages                 |
+| =:topic-color=        | Color for topic messages                       |
+| =:notice-color=       | Color for notice messages                      |
+| =:system-color=       | Color for system messages                      |
+| =:error-color=        | Color for error messages                       |
+| =:highlight-fg=       | Foreground color for highlighted messages      |
+| =:highlight-bold=     | Whether highlights are bold (=t= or =nil=)     |
+| =:border-fg=          | Color for window borders                       |
+| =:buflist-fg=         | Buffer list text color                         |
+| =:buflist-selected-fg=| Selected buffer color                          |
+| =:buflist-unread-fg=  | Unread buffer color                            |
 
 ** CrafterBin Integration
 

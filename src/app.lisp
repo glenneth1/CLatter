@@ -12,6 +12,9 @@
          (networks (config-networks cfg))
          (app (make-app)))
     
+    ;; Initialize theme system
+    (clatter.core.theme:init-theme)
+    
     ;; Apply UI settings from config
     (setf (clatter.core.model:ui-buflist-w (clatter.core.model:app-ui app))
           (clatter.core.config:config-buflist-width cfg))

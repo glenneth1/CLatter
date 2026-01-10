@@ -2,6 +2,10 @@
 
 (defvar *config-dir* (merge-pathnames ".config/clatter/" (user-homedir-pathname)))
 (defvar *config-file* (merge-pathnames "config.lisp" *config-dir*))
+
+(defun config-dir ()
+  "Return the configuration directory path."
+  *config-dir*)
 (defvar *authinfo-file* (merge-pathnames ".authinfo" (user-homedir-pathname)))
 (defvar *authinfo-gpg-file* (merge-pathnames ".authinfo.gpg" (user-homedir-pathname)))
 

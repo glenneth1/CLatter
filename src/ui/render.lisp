@@ -4,15 +4,12 @@
 (defvar *last-health-check* 0 "Universal time of last connection health check")
 (defparameter *health-check-interval* 30 "Seconds between health checks")
 
-;; Nick color palette - bright colors that work on dark backgrounds
-(defparameter *nick-colors*
-  '(:red :green :yellow :blue :magenta :cyan
-    :lime :maroon :olive :navy :purple :teal))
-
 (defun nick-color (nick)
-  "Hash a nick to a consistent color from the palette."
-  (let ((hash (reduce #'+ (map 'list #'char-code nick))))
-    (nth (mod hash (length *nick-colors*)) *nick-colors*)))
+  "Hash a nick to a consistent color from the theme palette."
+  (let* ((theme (current-theme))
+         (colors (theme-nick-colors theme))
+         (hash (reduce #'+ (map 'list #'char-code nick))))
+    (nth (mod hash (length colors)) colors)))
 
 (defun format-time (universal-time fmt)
   "Format universal time using format string.
@@ -56,37 +53,40 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
   (format win "~a" text))
 
 ;; Unicode box-drawing characters for thin borders
+;; Rounded corner box characters for modern look
 (defparameter *box-h* #\─)      ;; horizontal
 (defparameter *box-v* #\│)      ;; vertical
-(defparameter *box-tl* #\┌)     ;; top-left
-(defparameter *box-tr* #\┐)     ;; top-right
-(defparameter *box-bl* #\└)     ;; bottom-left
-(defparameter *box-br* #\┘)     ;; bottom-right
+(defparameter *box-tl* #\╭)     ;; top-left rounded
+(defparameter *box-tr* #\╮)     ;; top-right rounded
+(defparameter *box-bl* #\╰)     ;; bottom-left rounded
+(defparameter *box-br* #\╯)     ;; bottom-right rounded
 
 (defun %draw-box (win)
-  "Draw a thin Unicode box border around the window content area."
-  (let ((h (de.anvi.croatoan:height win))
-        (w (de.anvi.croatoan:width win)))
+  "Draw a thin Unicode box border around the window content area with theme color."
+  (let* ((h (de.anvi.croatoan:height win))
+         (w (de.anvi.croatoan:width win))
+         (border-color (theme-border-fg (current-theme)))
+         (h-str (string *box-h*)))
     (when (and (> h 1) (> w 1))
       ;; top border
       (setf (de.anvi.croatoan:cursor-position-y win) 0)
       (setf (de.anvi.croatoan:cursor-position-x win) 0)
-      (format win "~a" *box-tl*)
-      (loop repeat (- w 2) do (format win "~a" *box-h*))
-      (format win "~a" *box-tr*)
+      (de.anvi.croatoan:add-string win (string *box-tl*) :fgcolor border-color)
+      (loop repeat (- w 2) do (de.anvi.croatoan:add-string win h-str :fgcolor border-color))
+      (de.anvi.croatoan:add-string win (string *box-tr*) :fgcolor border-color)
       ;; bottom border
       (setf (de.anvi.croatoan:cursor-position-y win) (1- h))
       (setf (de.anvi.croatoan:cursor-position-x win) 0)
-      (format win "~a" *box-bl*)
-      (loop repeat (- w 2) do (format win "~a" *box-h*))
-      (format win "~a" *box-br*)
+      (de.anvi.croatoan:add-string win (string *box-bl*) :fgcolor border-color)
+      (loop repeat (- w 2) do (de.anvi.croatoan:add-string win h-str :fgcolor border-color))
+      (de.anvi.croatoan:add-string win (string *box-br*) :fgcolor border-color)
       ;; side borders
       (loop for y from 1 below (1- h) do
         (setf (de.anvi.croatoan:cursor-position-y win) y)
         (setf (de.anvi.croatoan:cursor-position-x win) 0)
-        (format win "~a" *box-v*)
+        (de.anvi.croatoan:add-string win (string *box-v*) :fgcolor border-color)
         (setf (de.anvi.croatoan:cursor-position-x win) (1- w))
-        (format win "~a" *box-v*)))))
+        (de.anvi.croatoan:add-string win (string *box-v*) :fgcolor border-color)))))
 
 (defun %clear-and-border (win &optional (title nil) (draw-border t))
   (de.anvi.croatoan:clear win)
@@ -102,18 +102,20 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
         (format win "~a" title)))))
 
 (defun level-color (level)
-  "Return the color for a message level."
-  (case level
-    (:join :green)
-    (:part :yellow)
-    (:quit :yellow)
-    (:away :magenta)
-    (:kick :red)
-    (:mode :cyan)
-    (:notice :cyan)
-    (:system :blue)
-    (:error :red)
-    (otherwise nil)))  ;; nil means use nick color for :chat
+  "Return the color for a message level from the current theme."
+  (let ((theme (current-theme)))
+    (case level
+      (:join (theme-join-color theme))
+      (:part (theme-part-color theme))
+      (:quit (theme-quit-color theme))
+      (:away :magenta)  ;; TODO: add to theme
+      (:kick (theme-kick-color theme))
+      (:mode (theme-mode-color theme))
+      (:topic (theme-topic-color theme))
+      (:notice (theme-notice-color theme))
+      (:system (theme-system-color theme))
+      (:error (theme-error-color theme))
+      (otherwise nil))))  ;; nil means use nick color for :chat
 
 (defun render-chat-pane (win buf)
   "Render a buffer's messages into a chat window pane."
@@ -170,25 +172,29 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                    (lvl-color (level-color level)))
               (setf (de.anvi.croatoan:cursor-position-y win) y)
               (setf (de.anvi.croatoan:cursor-position-x win) 1)
-              (cond
-                ;; Highlighted messages: bold magenta
-                (highlightp
-                 (de.anvi.croatoan:add-string win nick-display
-                                              :fgcolor :magenta
-                                              :attributes '(:bold))
-                 (de.anvi.croatoan:add-string win text-display
-                                              :fgcolor :magenta
-                                              :attributes '(:bold)))
+              (let* ((theme (current-theme))
+                     (highlight-fg (theme-highlight-fg theme))
+                     (highlight-attrs (if (theme-highlight-bold theme)
+                                          '(:bold) nil)))
+                (cond
+                  ;; Highlighted messages: use theme colors
+                  (highlightp
+                   (de.anvi.croatoan:add-string win nick-display
+                                                :fgcolor highlight-fg
+                                                :attributes highlight-attrs)
+                   (de.anvi.croatoan:add-string win text-display
+                                                :fgcolor highlight-fg
+                                                :attributes highlight-attrs))
                 ;; Level-colored messages (join/part/system/etc)
                 (lvl-color
                  (de.anvi.croatoan:add-string win nick-display :fgcolor lvl-color)
                  (de.anvi.croatoan:add-string win text-display :fgcolor lvl-color))
-                ;; Regular chat messages - nick colored, text default
-                (t
-                 (if firstp
-                     (de.anvi.croatoan:add-string win nick-display :fgcolor (nick-color nick-raw))
-                     (de.anvi.croatoan:add-string win nick-display))
-                 (de.anvi.croatoan:add-string win text-display))))
+                  ;; Regular chat messages - nick colored, text default
+                  (t
+                   (if firstp
+                       (de.anvi.croatoan:add-string win nick-display :fgcolor (nick-color nick-raw))
+                       (de.anvi.croatoan:add-string win nick-display))
+                   (de.anvi.croatoan:add-string win text-display)))))
             (incf y)))))))
 
 (defun maybe-check-connection-health (app)

@@ -31,7 +31,7 @@
 (defpackage #:clatter.core.config
   (:use #:cl)
   (:export
-   #:*config-dir* #:*config-file*
+   #:*config-dir* #:*config-file* #:config-dir
    #:network-config #:make-network-config
    #:network-config-name #:network-config-server #:network-config-port
    #:network-config-tls #:network-config-nick #:network-config-username
@@ -40,6 +40,19 @@
    #:config #:make-config #:config-networks #:config-default-network #:config-time-format #:config-buflist-width
    #:load-config #:save-config #:find-network-config #:add-network-config
    #:default-libera-config #:get-network-password #:get-server-password #:lookup-authinfo))
+
+(defpackage #:clatter.core.theme
+  (:use #:cl)
+  (:export
+   #:*current-theme* #:theme #:current-theme #:init-theme #:load-theme #:save-theme
+   #:theme-name #:theme-nick-colors
+   #:theme-join-color #:theme-part-color #:theme-quit-color #:theme-kick-color
+   #:theme-mode-color #:theme-topic-color #:theme-notice-color #:theme-system-color #:theme-error-color
+   #:theme-highlight-fg #:theme-highlight-bold #:theme-timestamp-color
+   #:theme-status-fg #:theme-status-bg
+   #:theme-buflist-fg #:theme-buflist-selected-fg #:theme-buflist-unread-fg #:theme-buflist-highlight-fg
+   #:theme-border-fg
+   #:make-default-theme #:make-tokyo-night-theme))
 
 (defpackage #:clatter.core.protocol
   (:use #:cl)
@@ -113,6 +126,11 @@
                 #:ui-win-buflist #:ui-win-chat #:ui-win-chat2 #:ui-win-nicklist #:ui-win-status #:ui-win-input #:ui-input
                 #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
                 #:ui-nicklist-w #:ui-nicklist-visible)
+  (:import-from #:clatter.core.theme
+                #:current-theme #:theme-nick-colors
+                #:theme-join-color #:theme-part-color #:theme-quit-color #:theme-kick-color
+                #:theme-mode-color #:theme-topic-color #:theme-notice-color #:theme-system-color #:theme-error-color
+                #:theme-highlight-fg #:theme-highlight-bold #:theme-border-fg)
   (:import-from #:clatter.core.ring #:ring->list)
   (:export #:render-frame))
 
