@@ -44,7 +44,7 @@
       (let ((msg (clatter.core.model:make-message
                   :nick sender
                   :text text
-                  :time (or server-time (get-universal-time))
+                  :ts (or server-time (get-universal-time))
                   :level :chat)))
         (clatter.core.dispatch:deliver-message app buf msg :highlightp highlightp)))))
 
@@ -102,7 +102,7 @@
          (nick (event-nick event))
          (account (event-account event))
          (network-id (clatter.net.irc:irc-network-id conn))
-         (buf (clatter.core.model:find-buffer app network-id channel)))
+         (buf (clatter.core.model:find-buffer-by-network app network-id channel)))
     (when buf
       ;; Add to member list
       (clatter.core.model:buffer-add-member buf nick)
@@ -127,7 +127,7 @@
          (nick (event-nick event))
          (message (event-message event))
          (network-id (clatter.net.irc:irc-network-id conn))
-         (buf (clatter.core.model:find-buffer app network-id channel)))
+         (buf (clatter.core.model:find-buffer-by-network app network-id channel)))
     (when buf
       ;; Remove from member list
       (clatter.core.model:buffer-remove-member buf nick)
@@ -243,7 +243,7 @@
          (channel (event-channel event))
          (names (event-names event))
          (network-id (clatter.net.irc:irc-network-id conn))
-         (buf (clatter.core.model:find-buffer app network-id channel)))
+         (buf (clatter.core.model:find-buffer-by-network app network-id channel)))
     (when buf
       ;; Add each name to the member list
       (dolist (name names)

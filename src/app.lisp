@@ -30,11 +30,11 @@
     (let ((started-connections nil))
       (dolist (net-cfg networks)
         (when (clatter.core.config:network-config-autoconnect net-cfg)
-          (push (start-irc-connection app 0 net-cfg) started-connections)))
+          (push (start-irc-connection app (clatter.core.config:network-config-name net-cfg) net-cfg) started-connections)))
       
       ;; If no autoconnect networks, connect to first one
       (when (and networks (null started-connections))
-        (push (start-irc-connection app 0 (first networks)) started-connections))
+        (push (start-irc-connection app (clatter.core.config:network-config-name (first networks)) (first networks)) started-connections))
       
       ;; Set config for command system
       (setf clatter.core.commands:*current-config* cfg)

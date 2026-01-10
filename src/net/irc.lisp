@@ -44,6 +44,14 @@
                  :network-id network-id
                  :network-config network-config))
 
+(defun dispatch-event (conn event)
+  "Dispatch an event to be handled on the main thread.
+   Events from IRC are received on background threads, so we use
+   croatoan:submit to run the handler on the main event loop."
+  (let ((app (irc-app conn)))
+    (de.anvi.croatoan:submit
+      (clatter.core.events:handle-event event app))))
+
 (defun irc-send (conn line)
   "Send a line to the IRC server (thread-safe)."
   (bordeaux-threads:with-lock-held ((irc-write-lock conn))
@@ -349,9 +357,16 @@
            ;; If part of a batch, accumulate instead of delivering
            (batch-id
             (irc-accumulate-batch-message conn batch-id sender-nick text server-time))
-           ;; Normal message
+           ;; Normal message - dispatch as CLOS event
            (t
-            (irc-deliver-chat conn target sender-nick text server-time)))))
+            (unless (clatter.core.model:ignored-p (irc-app conn) sender-nick)
+              (dispatch-event conn
+                (make-instance 'clatter.core.events:privmsg-event
+                               :connection conn
+                               :sender sender-nick
+                               :target target
+                               :text text
+                               :server-time server-time)))))))
       
       ;; NOTICE
       ((string= command "NOTICE")
@@ -377,8 +392,14 @@
          (if (string= nick (irc-nick conn))
              ;; We joined - create buffer
              (irc-create-channel-buffer conn channel)
-             ;; Someone else joined - pass account info if available
-             (irc-deliver-join conn channel nick account realname))))
+             ;; Someone else joined - dispatch as CLOS event
+             (dispatch-event conn
+               (make-instance 'clatter.core.events:join-event
+                              :connection conn
+                              :channel channel
+                              :nick nick
+                              :account account
+                              :realname realname)))))
       
       ;; PART
       ((string= command "PART")
@@ -386,14 +407,23 @@
               (message (second params))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (nick (clatter.core.protocol:prefix-nick parsed-prefix)))
-         (irc-deliver-part conn channel nick message)))
+         (dispatch-event conn
+           (make-instance 'clatter.core.events:part-event
+                          :connection conn
+                          :channel channel
+                          :nick nick
+                          :message message))))
       
       ;; QUIT
       ((string= command "QUIT")
        (let* ((message (first params))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (nick (clatter.core.protocol:prefix-nick parsed-prefix)))
-         (irc-deliver-quit conn nick message)))
+         (dispatch-event conn
+           (make-instance 'clatter.core.events:quit-event
+                          :connection conn
+                          :nick nick
+                          :message message))))
       
       ;; NICK - nick change (ours or someone else's)
       ((string= command "NICK")
@@ -405,15 +435,23 @@
              (progn
                (setf (irc-nick conn) new-nick)
                (irc-log-system conn "Nick changed to ~a" new-nick))
-             ;; Someone else changed nick - notify channels
-             (irc-deliver-nick-change conn old-nick new-nick))))
+             ;; Someone else changed nick - dispatch as CLOS event
+             (dispatch-event conn
+               (make-instance 'clatter.core.events:nick-event
+                              :connection conn
+                              :old-nick old-nick
+                              :new-nick new-nick)))))
       
       ;; AWAY - IRCv3 away-notify capability
       ((string= command "AWAY")
        (let* ((parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (nick (clatter.core.protocol:prefix-nick parsed-prefix))
               (away-msg (first params)))
-         (irc-deliver-away conn nick away-msg)))
+         (dispatch-event conn
+           (make-instance 'clatter.core.events:away-event
+                          :connection conn
+                          :nick nick
+                          :message away-msg))))
       
       ;; MODE - channel or user mode change
       ((string= command "MODE")
