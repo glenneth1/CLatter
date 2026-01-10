@@ -128,6 +128,8 @@
       (setf (theme-buflist-unread-fg theme) (getf plist :buflist-unread-fg)))
     (when (getf plist :buflist-highlight-fg)
       (setf (theme-buflist-highlight-fg theme) (getf plist :buflist-highlight-fg)))
+    (when (getf plist :border-fg)
+      (setf (theme-border-fg theme) (getf plist :border-fg)))
     theme))
 
 (defun load-theme-file (path)

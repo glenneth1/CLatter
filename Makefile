@@ -10,6 +10,7 @@ BUILD_SCRIPT := build.lisp
 all: $(TARGET)
 
 $(TARGET): $(BUILD_SCRIPT) clatter.asd $(wildcard src/*.lisp) $(wildcard src/**/*.lisp)
+	rm -rf ~/.cache/common-lisp/sbcl-*/$(shell pwd)
 	$(SBCL) --non-interactive --load $(BUILD_SCRIPT)
 
 run: $(TARGET)
