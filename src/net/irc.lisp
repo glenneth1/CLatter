@@ -630,24 +630,6 @@
         (setf (clatter.core.model:buffer-channel-modes buf) modes)
         (clatter.core.model:mark-dirty app :status)))))
 
-(defun irc-handle-typing (conn nick target typing-state)
-  "Handle incoming typing indicator from another user."
-  (let ((app (irc-app conn)))
-    ;; Don't show our own typing
-    (unless (string-equal nick (irc-nick conn))
-      (de.anvi.croatoan:submit
-        (let ((buf (irc-find-buffer conn target)))
-          (when buf
-            ;; Store typing state in buffer's typing-users hash
-            (let ((typing-users (clatter.core.model:buffer-typing-users buf)))
-              (cond
-                ((string-equal typing-state "active")
-                 (setf (gethash nick typing-users) (get-universal-time)))
-                ((or (string-equal typing-state "done")
-                     (string-equal typing-state "paused"))
-                 (remhash nick typing-users)))
-              (clatter.core.model:mark-dirty app :status))))))))
-
 (defun irc-send-typing (conn target state)
   "Send typing indicator if the capability is enabled.
    STATE should be :active, :paused, or :done."
