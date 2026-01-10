@@ -330,12 +330,14 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                               (format nil "~a [~a]" (buffer-title buf) channel-modes)
                               (buffer-title buf))
                           "---"))
+           ;; Get network name for status bar
+           (network-name (when buf (buffer-network buf)))
            ;; Build mode indicator for status bar
            (mode-str (when (and my-modes (> (length my-modes) 0))
                        (format nil "(~a)" my-modes)))
            (shortcuts " | ^P/N buf | ^U/D scroll | ^W split | ^L redraw")
            (line (format nil " [~a]~@[ ~a~]~@[  unread:~d~]~@[  mentions:~d~]~@[  ~a~]~a"
-                         title-str
+                         (if network-name (format nil "~a/~a" network-name title-str) title-str)
                          mode-str
                          (and (> unread 0) unread)
                          (and (> highlights 0) highlights)
