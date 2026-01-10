@@ -88,6 +88,8 @@ Example:
 (:clatter-config
  :version 1
  :default-network nil
+ :time-format "%H:%M:%S"
+ :buflist-width 28
  :networks
  ((:name "libera"
    :server "irc.libera.chat"
@@ -102,6 +104,11 @@ Example:
    :autojoin ("#lisp" "#emacs")
    :autoconnect t)))
 #+end_src
+
+*** UI Options
+
+- =:time-format= - Format string for timestamps (default: ="%H:%M"=)
+- =:buflist-width= - Width of the buffer list panel in characters (default: =28=). Reduce this for smaller terminal windows.
 
 *** SASL Authentication
 

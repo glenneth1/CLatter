@@ -14,6 +14,7 @@
   ((id              :initarg :id :accessor buffer-id)
    (kind            :initarg :kind :reader buffer-kind) ; :server :channel :query
    (title           :initarg :title :accessor buffer-title)
+   (network         :initarg :network :initform nil :accessor buffer-network)  ; network name for multi-network
    (scrollback      :initform (make-ring :capacity 4000) :reader buffer-scrollback)
    (unread-count    :initform 0 :accessor buffer-unread-count)
    (highlight-count :initform 0 :accessor buffer-highlight-count)
@@ -23,8 +24,8 @@
    (channel-modes   :initform "" :accessor buffer-channel-modes)  ; e.g., "+nt"
    (my-modes        :initform "" :accessor buffer-my-modes)))     ; my modes in this channel e.g., "@" or "+"
 
-(defun make-buffer (&key id (kind :channel) (title ""))
-  (make-instance 'buffer :id id :kind kind :title title))
+(defun make-buffer (&key id (kind :channel) (title "") network)
+  (make-instance 'buffer :id id :kind kind :title title :network network))
 
 (defclass input-state ()
   ((text        :initform "" :accessor input-text)
@@ -56,16 +57,27 @@
   ((ui                :initform (make-ui-state) :reader app-ui)
    (buffers           :initform (make-array 0 :adjustable t :fill-pointer 0) :accessor app-buffers)
    (current-buffer-id :initform 0 :accessor app-current-buffer-id)
+   (buffer-order      :initform nil :accessor app-buffer-order)  ; visual order of buffer IDs for navigation
+   (connections       :initform (make-hash-table :test 'equal) :accessor app-connections)  ; network-name -> connection
    (dirty-flags       :initform (list :layout :chat :buflist :status :input) :accessor app-dirty-flags)
    (quit-requested    :initform nil :accessor app-quit-requested)
    (ignore-list       :initform (make-hash-table :test 'equalp) :accessor app-ignore-list)))
 
 (defun make-app ()
   (let ((a (make-instance 'app)))
-    ;; seed only server buffer - channels created dynamically on JOIN
-    (vector-push-extend (make-buffer :id 0 :kind :server :title "server") (app-buffers a))
-    (setf (app-current-buffer-id a) 0)
+    ;; No default server buffer - created per-network when connections start
     a))
+
+(defun create-server-buffer (app network-name)
+  "Create a server buffer for a network. Returns the buffer."
+  (let* ((buffers (app-buffers app))
+         (buf (make-buffer :id (length buffers) :kind :server :title network-name :network network-name)))
+    (vector-push-extend buf buffers)
+    (when (= (length buffers) 1)
+      ;; First buffer, make it current
+      (setf (app-current-buffer-id app) 0))
+    (mark-dirty app :buflist)
+    buf))
 
 (defun mark-dirty (app &rest flags)
   (dolist (f flags)
@@ -77,7 +89,9 @@
 (defun clear-dirty (app) (setf (app-dirty-flags app) nil))
 
 (defun find-buffer (app id)
-  (aref (app-buffers app) id))
+  (let ((buffers (app-buffers app)))
+    (when (and (>= id 0) (< id (length buffers)))
+      (aref buffers id))))
 
 (defun current-buffer (app)
   "Return the current buffer. If the buffer at current-buffer-id is nil,
@@ -104,6 +118,15 @@
                 (setf (ui-split-mode ui) nil)
                 (current-buffer app))))
         (current-buffer app))))
+
+(defun get-buffer-connection (app buf)
+  "Get the IRC connection for a buffer based on its network."
+  (when (and buf (buffer-network buf))
+    (gethash (buffer-network buf) (app-connections app))))
+
+(defun get-current-connection (app)
+  "Get the IRC connection for the current/active buffer."
+  (get-buffer-connection app (active-buffer app)))
 
 (defun remove-buffer (app buffer-id)
   "Remove a buffer from the app. Cannot remove the server buffer (id 0).
