@@ -24,6 +24,7 @@
    (:file "src/ui/theme")
    (:file "src/ui/render")
    (:file "src/ui/keymap")
+   (:file "src/ui/key-actions")
    (:file "src/ui/tui")
    (:file "src/app")
    (:file "src/main")))

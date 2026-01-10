@@ -139,16 +139,14 @@
       (mark-dirty app :chat :status))))
 
 (defun install-keybindings (screen app)
+  "Install keybindings using CLOS action dispatch.
+   Actions are defined in key-actions.lisp and dispatched via execute-action."
   ;; quit with F10 or Esc-q (use /quit command as primary method)
   (de.anvi.croatoan:bind screen :key-f10 #'de.anvi.croatoan:exit-event-loop)
   (de.anvi.croatoan:bind screen (coerce '(#\Esc #\q) 'string) #'de.anvi.croatoan:exit-event-loop)
 
-  ;; Ctrl-L to force redraw/refresh (like in vim/less)
-  (de.anvi.croatoan:bind screen (code-char 12)
-    (lambda (o e)
-      (declare (ignore o e))
-      (clatter.ui.tui:create-layout-windows app (ui-screen (app-ui app)))
-      (mark-dirty app :layout :chat :buflist :status :input)))
+  ;; Ctrl-L to force redraw/refresh
+  (de.anvi.croatoan:bind screen (code-char 12) (make-action-handler "redraw" app))
 
   ;; idle/tick: drain submit queue + redraw + check quit
   (de.anvi.croatoan:bind screen nil
@@ -160,65 +158,61 @@
       (when (dirty-p app)
         (render-frame app))))
 
-  ;; basic editing - multiple backspace bindings for different terminals
-  (de.anvi.croatoan:bind screen #\Backspace (lambda (o e) (declare (ignore o e)) (input-backspace app)))
-  (de.anvi.croatoan:bind screen #\Rubout (lambda (o e) (declare (ignore o e)) (input-backspace app)))  ;; Rubout = DEL
-  (de.anvi.croatoan:bind screen (code-char 127) (lambda (o e) (declare (ignore o e)) (input-backspace app)))  ;; DEL
-  (de.anvi.croatoan:bind screen (code-char 8) (lambda (o e) (declare (ignore o e)) (input-backspace app)))    ;; Ctrl-H / BS
-  (de.anvi.croatoan:bind screen :backspace (lambda (o e) (declare (ignore o e)) (input-backspace app)))
-  (de.anvi.croatoan:bind screen :key-backspace (lambda (o e) (declare (ignore o e)) (input-backspace app)))
-  (de.anvi.croatoan:bind screen :dc (lambda (o e) (declare (ignore o e)) (input-delete app)))
-  (de.anvi.croatoan:bind screen :key-dc (lambda (o e) (declare (ignore o e)) (input-delete app)))  ;; Delete key
-  (de.anvi.croatoan:bind screen :key-left (lambda (o e) (declare (ignore o e)) (input-move-left app)))
-  (de.anvi.croatoan:bind screen :key-right (lambda (o e) (declare (ignore o e)) (input-move-right app)))
-  (de.anvi.croatoan:bind screen :key-home (lambda (o e) (declare (ignore o e)) (input-move-home app)))
-  (de.anvi.croatoan:bind screen :key-end (lambda (o e) (declare (ignore o e)) (input-move-end app)))
+  ;; Input editing - using CLOS actions
+  (de.anvi.croatoan:bind screen #\Backspace (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen #\Rubout (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen (code-char 127) (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen (code-char 8) (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen :backspace (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen :key-backspace (make-action-handler "backspace" app))
+  (de.anvi.croatoan:bind screen :dc (make-action-handler "delete" app))
+  (de.anvi.croatoan:bind screen :key-dc (make-action-handler "delete" app))
+  (de.anvi.croatoan:bind screen :key-left (make-action-handler "move-left" app))
+  (de.anvi.croatoan:bind screen :key-right (make-action-handler "move-right" app))
+  (de.anvi.croatoan:bind screen :key-home (make-action-handler "move-home" app))
+  (de.anvi.croatoan:bind screen :key-end (make-action-handler "move-end" app))
   ;; Emacs/readline-style cursor movement
-  (de.anvi.croatoan:bind screen (code-char 1) (lambda (o e) (declare (ignore o e)) (input-move-home app)))   ;; Ctrl-A beginning
-  (de.anvi.croatoan:bind screen (code-char 5) (lambda (o e) (declare (ignore o e)) (input-move-end app)))    ;; Ctrl-E end
-  (de.anvi.croatoan:bind screen (code-char 2) (lambda (o e) (declare (ignore o e)) (input-move-left app)))   ;; Ctrl-B back
-  (de.anvi.croatoan:bind screen (code-char 6) (lambda (o e) (declare (ignore o e)) (input-move-right app)))  ;; Ctrl-F forward
-  (de.anvi.croatoan:bind screen :key-up (lambda (o e) (declare (ignore o e)) (input-history-prev app)))
-  (de.anvi.croatoan:bind screen :key-down (lambda (o e) (declare (ignore o e)) (input-history-next app)))
-  (de.anvi.croatoan:bind screen #\Newline (lambda (o e) (declare (ignore o e)) (input-submit-line app)))
-  (de.anvi.croatoan:bind screen #\Return (lambda (o e) (declare (ignore o e)) (input-submit-line app)))
-  (de.anvi.croatoan:bind screen #\Tab (lambda (o e) (declare (ignore o e)) (input-tab-complete app)))
+  (de.anvi.croatoan:bind screen (code-char 1) (make-action-handler "move-home" app))   ;; Ctrl-A
+  (de.anvi.croatoan:bind screen (code-char 5) (make-action-handler "move-end" app))    ;; Ctrl-E
+  (de.anvi.croatoan:bind screen (code-char 2) (make-action-handler "move-left" app))   ;; Ctrl-B
+  (de.anvi.croatoan:bind screen (code-char 6) (make-action-handler "move-right" app))  ;; Ctrl-F
+  (de.anvi.croatoan:bind screen :key-up (make-action-handler "history-prev" app))
+  (de.anvi.croatoan:bind screen :key-down (make-action-handler "history-next" app))
+  (de.anvi.croatoan:bind screen #\Newline (make-action-handler "submit" app))
+  (de.anvi.croatoan:bind screen #\Return (make-action-handler "submit" app))
+  (de.anvi.croatoan:bind screen #\Tab (make-action-handler "tab-complete" app))
 
-  ;; buffer nav (WeeChat-ish fallbacks)
-  (de.anvi.croatoan:bind screen :key-ppage (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))
-  (de.anvi.croatoan:bind screen :key-npage (lambda (o e) (declare (ignore o e)) (%scroll-down app 10)))
-  (de.anvi.croatoan:bind screen :ppage (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))
-  (de.anvi.croatoan:bind screen :npage (lambda (o e) (declare (ignore o e)) (%scroll-down app 10)))
-  (de.anvi.croatoan:bind screen (code-char 16) (lambda (o e) (declare (ignore o e)) (%buf-prev app)))  ;; Ctrl-P
-  (de.anvi.croatoan:bind screen (code-char 14) (lambda (o e) (declare (ignore o e)) (%buf-next app)))  ;; Ctrl-N
-  ;; Ctrl-U/D as alternative scroll
-  (de.anvi.croatoan:bind screen (code-char 21) (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))   ;; Ctrl-U scroll up
-  (de.anvi.croatoan:bind screen (code-char 4) (lambda (o e) (declare (ignore o e)) (%scroll-down app 10)))  ;; Ctrl-D scroll down
+  ;; Buffer navigation - using CLOS actions
+  (de.anvi.croatoan:bind screen :key-ppage (make-action-handler "scroll-up" app))
+  (de.anvi.croatoan:bind screen :key-npage (make-action-handler "scroll-down" app))
+  (de.anvi.croatoan:bind screen :ppage (make-action-handler "scroll-up" app))
+  (de.anvi.croatoan:bind screen :npage (make-action-handler "scroll-down" app))
+  (de.anvi.croatoan:bind screen (code-char 16) (make-action-handler "buffer-prev" app))  ;; Ctrl-P
+  (de.anvi.croatoan:bind screen (code-char 14) (make-action-handler "buffer-next" app))  ;; Ctrl-N
+  (de.anvi.croatoan:bind screen (code-char 21) (make-action-handler "scroll-up" app))    ;; Ctrl-U
+  (de.anvi.croatoan:bind screen (code-char 4) (make-action-handler "scroll-down" app))   ;; Ctrl-D
 
-  ;; Split pane controls
-  (de.anvi.croatoan:bind screen (code-char 23) (lambda (o e) (declare (ignore o e)) (%toggle-split app)))  ;; Ctrl-W toggle split
-  (de.anvi.croatoan:bind screen (code-char 18) (lambda (o e) (declare (ignore o e)) (%split-set-right-buffer app)))  ;; Ctrl-R set right pane
-  (de.anvi.croatoan:bind screen (code-char 24) (lambda (o e) (declare (ignore o e)) (%swap-panes app)))  ;; Ctrl-X swap panes
-  ;; Ctrl+] to toggle active pane (where input goes)
-  (de.anvi.croatoan:bind screen (code-char 29) (lambda (o e) (declare (ignore o e)) (%toggle-active-pane app)))  ;; Ctrl+] toggle active pane
-  ;; Ctrl-M (Enter is also Ctrl-M, so use Ctrl-O instead) to toggle nick list
-  (de.anvi.croatoan:bind screen (code-char 15) (lambda (o e) (declare (ignore o e)) (%toggle-nicklist app)))  ;; Ctrl-O toggle nick list
+  ;; Split pane controls - using CLOS actions
+  (de.anvi.croatoan:bind screen (code-char 23) (make-action-handler "toggle-split" app))       ;; Ctrl-W
+  (de.anvi.croatoan:bind screen (code-char 18) (make-action-handler "set-right-buffer" app))   ;; Ctrl-R
+  (de.anvi.croatoan:bind screen (code-char 24) (make-action-handler "swap-panes" app))         ;; Ctrl-X
+  (de.anvi.croatoan:bind screen (code-char 29) (make-action-handler "toggle-active-pane" app)) ;; Ctrl+]
+  (de.anvi.croatoan:bind screen (code-char 15) (make-action-handler "toggle-nicklist" app))    ;; Ctrl-O
 
-  ;; raw escape sequence binds (Ghostty/xterm/various terminals)
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\A) 'string) (lambda (o e) (declare (ignore o e)) (input-history-prev app)))
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\B) 'string) (lambda (o e) (declare (ignore o e)) (input-history-next app)))
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\D) 'string) (lambda (o e) (declare (ignore o e)) (input-move-left app)))
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\C) 'string) (lambda (o e) (declare (ignore o e)) (input-move-right app)))
-  ;; Page Up/Down escape sequences - multiple variants for different terminals
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\5 #\~) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))   ;; xterm
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\6 #\~) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-down app 10))) ;; xterm
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\5 #\;) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))   ;; variant
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\6 #\;) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-down app 10))) ;; variant
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\O #\5 #\~) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-up app 10)))   ;; application mode
-  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\O #\6 #\~) 'string) (lambda (o e) (declare (ignore o e)) (%scroll-down app 10))) ;; application mode
+  ;; Raw escape sequence binds (Ghostty/xterm/various terminals)
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\A) 'string) (make-action-handler "history-prev" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\B) 'string) (make-action-handler "history-next" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\D) 'string) (make-action-handler "move-left" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\C) 'string) (make-action-handler "move-right" app))
+  ;; Page Up/Down escape sequences
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\5 #\~) 'string) (make-action-handler "scroll-up" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\6 #\~) 'string) (make-action-handler "scroll-down" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\5 #\;) 'string) (make-action-handler "scroll-up" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\6 #\;) 'string) (make-action-handler "scroll-down" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\O #\5 #\~) 'string) (make-action-handler "scroll-up" app))
+  (de.anvi.croatoan:bind screen (coerce '(#\Esc #\O #\6 #\~) 'string) (make-action-handler "scroll-down" app))
 
-  ;; Default handler for all other events - handles printable characters
-  ;; This catches any character the terminal sends, including Shift+letter -> uppercase
+  ;; Default handler for printable characters
   (de.anvi.croatoan:bind screen t
     (lambda (o e)
       (declare (ignore o))
