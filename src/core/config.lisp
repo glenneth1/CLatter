@@ -172,11 +172,21 @@ Returns plist with :login and :password, or nil if not found."
                                        :output out
                                        :error-output nil)))
     (error () nil)))
+(defun read-password-store (password-name)
+  "Resolve a password value from pass(1)"
+  (handler-case
+      (string-trim '(#\Space #\Newline #\Return)
+                   (with-output-to-string (out)
+		     (uiop:run-program (list "pass" password-name)
+					:output out
+					:error-output nil)))
+    (error () nil)))
 
 (defun resolve-password (pw &optional server nick)
   "Resolve a password value that may be:
    - :authinfo - read from ~/.authinfo or ~/.authinfo.gpg (requires server/nick)
    - (:systemd-cred \"/path/to/file.cred\") - decrypt using systemd-creds
+   - (:pass password-name) - decrypt using pass(1)
    - plain string - use directly
    - nil - no password"
   (cond
@@ -185,11 +195,19 @@ Returns plist with :login and :password, or nil if not found."
      (when (and server nick)
        (let ((entry (lookup-authinfo server nick)))
          (getf entry :password))))
+
     ;; (:systemd-cred "/path/to/file.cred") - decrypt using systemd-creds
     ((and (listp pw) (eq (first pw) :systemd-cred))
      (let ((cred-path (second pw)))
        (when cred-path
          (read-systemd-cred cred-path))))
+
+    ;; (:pass "password-name") - decrypt using pass(1)
+    ((and (listp pw) (eq (first pw) :pass))
+     (let ((password-name (second pw)))
+       (when password-name
+         (read-password-store password-name))))
+       
     ;; Plain string password or nil
     (t pw)))
 
