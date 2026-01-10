@@ -380,7 +380,13 @@
                   (char= (char raw-text 0) (code-char 1))
                   (char= (char raw-text (1- (length raw-text))) (code-char 1)))
              (irc-handle-ctcp conn sender-nick target raw-text)
-             (irc-deliver-notice conn target sender-nick text))))
+             ;; Normal NOTICE - dispatch as CLOS event
+             (dispatch-event conn
+               (make-instance 'clatter.core.events:notice-event
+                              :connection conn
+                              :sender sender-nick
+                              :target target
+                              :text text)))))
       
       ;; JOIN - with extended-join: channel account realname
       ((string= command "JOIN")
@@ -459,7 +465,13 @@
               (modes (rest params))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (setter (or (clatter.core.protocol:prefix-nick parsed-prefix) target)))
-         (irc-handle-mode conn target setter modes)))
+         ;; Dispatch as CLOS event
+         (dispatch-event conn
+           (make-instance 'clatter.core.events:mode-event
+                          :connection conn
+                          :target target
+                          :setter setter
+                          :modes modes))))
       
       ;; 324 RPL_CHANNELMODEIS - channel modes response
       ((string= command "324")

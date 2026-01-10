@@ -60,9 +60,9 @@
          (text (event-text event))
          (network-id (clatter.net.irc:irc-network-id conn))
          ;; Notices usually go to server buffer unless from a channel
-         (buf (if (and target (char= (char target 0) #\#))
-                  (clatter.core.model:find-buffer app network-id target)
-                  (clatter.core.model:find-buffer app network-id :server))))
+         (buf (if (and target (> (length target) 0) (char= (char target 0) #\#))
+                  (clatter.core.model:find-buffer-by-network app network-id target)
+                  (clatter.core.model:find-buffer-by-network app network-id :server))))
     (when buf
       (let ((msg (clatter.core.model:make-message
                   :nick sender
@@ -224,8 +224,8 @@
          (setter (event-setter event))
          (modes (event-modes event))
          (network-id (clatter.net.irc:irc-network-id conn)))
-    (when (and target (char= (char target 0) #\#))
-      (let ((buf (clatter.core.model:find-buffer app network-id target)))
+    (when (and target (> (length target) 0) (char= (char target 0) #\#))
+      (let ((buf (clatter.core.model:find-buffer-by-network app network-id target)))
         (when buf
           (let ((msg (clatter.core.model:make-message
                       :nick setter
