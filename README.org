@@ -188,6 +188,18 @@ Use =systemd-creds= to encrypt your password. This ties the credential to your m
 
 CLatter will decrypt the credential file at startup using =systemd-creds decrypt=.
 
+**** pass(1) (GPG encrypted)
+Use =pass(1)= the standard unix password manager, to store and encrypt your password. This works using GPG and the credential is portable. 
+
+1. Install pass using your package manager of choice (see [[https://www.passwordstore.org/][website] for supported platforms. 
+
+2. Generate a password =pass generate= 
+
+3. Update your config:
+   #+begin_src lisp
+   :nickserv-pw (:pass "password-name") ; where password-name is the name of the file in pass(1)
+   #+end_src
+
 **** Server Password
 
 If your IRC server requires a connection password (separate from NickServ), use the =:password= field with any of the above methods:
