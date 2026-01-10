@@ -473,10 +473,11 @@
     ;; Unknown command
     (t nil)))
 
-(defun get-current-network-config ()
-  "Get the network config for the current connection."
-  (when (and *current-connection* *current-config*)
-    (clatter.net.irc:irc-network-config *current-connection*)))
+(defun get-current-network-config (app)
+  "Get the network config for the current buffer's connection."
+  (let ((conn (clatter.core.model:get-current-connection app)))
+    (when (and conn *current-config*)
+      (clatter.net.irc:irc-network-config conn))))
 
 (defun handle-log-command (app args)
   "Handle /log command: view recent logs or search.
@@ -626,7 +627,7 @@
 
 (defun add-to-autojoin (app channel)
   "Add a channel to the autojoin list and save config."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (when net-cfg
       (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))
         (unless (member channel autojoin :test #'string-equal)
@@ -641,7 +642,7 @@
 
 (defun remove-from-autojoin (app channel)
   "Remove a channel from the autojoin list and save config."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (when net-cfg
       (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))
         (if (member channel autojoin :test #'string-equal)
@@ -662,7 +663,7 @@
 
 (defun list-autojoin (app)
   "List all channels in the autojoin list."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (de.anvi.croatoan:submit
       (if net-cfg
           (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))

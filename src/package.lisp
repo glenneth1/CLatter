@@ -10,9 +10,10 @@
   (:use #:cl)
   (:import-from #:clatter.core.ring #:make-ring #:ring-push #:ring->list #:ring-count)
   (:export
-   #:app #:make-app #:app-ui #:app-buffers #:app-current-buffer-id #:app-dirty-flags #:app-quit-requested
+   #:app #:make-app #:app-ui #:app-buffers #:app-current-buffer-id #:app-buffer-order #:app-connections #:app-dirty-flags #:app-quit-requested
    #:mark-dirty #:dirty-p #:clear-dirty
-   #:buffer #:make-buffer #:buffer-id #:buffer-title #:buffer-kind #:buffer-scrollback
+   #:buffer #:make-buffer #:buffer-id #:buffer-title #:buffer-kind #:buffer-network #:buffer-scrollback
+   #:create-server-buffer
    #:buffer-unread-count #:buffer-highlight-count #:buffer-scroll-offset #:buffer-members #:buffer-typing-users #:get-typing-nicks
    #:buffer-channel-modes #:buffer-my-modes
    #:ui-win-chat2 #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
@@ -22,6 +23,7 @@
    #:ui-term-w #:ui-term-h #:ui-buflist-w
    #:input-state #:make-input-state #:input-text #:input-cursor #:input-history #:input-history-pos
    #:find-buffer #:current-buffer #:active-buffer
+   #:get-buffer-connection #:get-current-connection
    #:remove-buffer #:find-buffer-by-title
    #:app-ignore-list #:ignore-nick #:unignore-nick #:ignored-p #:list-ignored))
 
@@ -101,8 +103,8 @@
 (defpackage #:clatter.ui.render
   (:use #:cl)
   (:import-from #:clatter.core.model
-                #:app #:app-ui #:app-buffers #:app-current-buffer-id
-                #:buffer #:buffer-title #:buffer-kind #:buffer-unread-count #:buffer-highlight-count
+                #:app #:app-ui #:app-buffers #:app-current-buffer-id #:app-buffer-order #:app-connections
+                #:buffer #:buffer-title #:buffer-kind #:buffer-network #:buffer-unread-count #:buffer-highlight-count
                 #:buffer-channel-modes #:buffer-my-modes
                 #:current-buffer #:buffer-scrollback #:buffer-scroll-offset
                 #:input-text #:input-cursor

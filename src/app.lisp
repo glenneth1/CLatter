@@ -1,7 +1,5 @@
 (in-package #:clatter.app)
 
-(defvar *connections* nil "List of active IRC connections")
-
 (defun prompt-for-nick ()
   "Simple prompt for nick at startup (before TUI)."
   (format t "~%CLatter - IRC Client~%")
@@ -29,26 +27,29 @@
         (format t "Connecting to Libera.Chat as ~a...~%" nick)))
     
     ;; Start connections for all autoconnect networks
-    (dolist (net-cfg networks)
-      (when (clatter.core.config:network-config-autoconnect net-cfg)
-        (push (start-irc-connection app 0 net-cfg) *connections*)))
-    
-    ;; If no autoconnect networks, connect to first one
-    (when (and networks (null *connections*))
-      (push (start-irc-connection app 0 (first networks)) *connections*))
-    
-    ;; Set current connection and config for command system
-    (setf clatter.core.commands:*current-config* cfg)
-    (when *connections*
-      (setf *current-connection* (first *connections*))
-      ;; Initialize DCC manager with app and first connection
-      (clatter.net.dcc:make-dcc-manager app (first *connections*)))
-    
-    ;; enter UI (blocks until quit)
-    (run-tui app)
-    
-    ;; Cleanup connections on exit
-    (dolist (conn *connections*)
-      (ignore-errors (clatter.net.irc:irc-disconnect conn "CLatter closing")))
+    (let ((started-connections nil))
+      (dolist (net-cfg networks)
+        (when (clatter.core.config:network-config-autoconnect net-cfg)
+          (push (start-irc-connection app 0 net-cfg) started-connections)))
+      
+      ;; If no autoconnect networks, connect to first one
+      (when (and networks (null started-connections))
+        (push (start-irc-connection app 0 (first networks)) started-connections))
+      
+      ;; Set config for command system
+      (setf clatter.core.commands:*current-config* cfg)
+      
+      ;; Initialize DCC manager with first connection if any
+      (when started-connections
+        (clatter.net.dcc:make-dcc-manager app (first started-connections)))
+      
+      ;; enter UI (blocks until quit)
+      (run-tui app)
+      
+      ;; Cleanup all connections on exit
+      (maphash (lambda (name conn)
+                 (declare (ignore name))
+                 (ignore-errors (clatter.net.irc:irc-disconnect conn "CLatter closing")))
+               (clatter.core.model:app-connections app)))
     
     app))
