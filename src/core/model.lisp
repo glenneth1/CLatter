@@ -122,12 +122,7 @@
 (defun get-buffer-connection (app buf)
   "Get the IRC connection for a buffer based on its network."
   (when (and buf (buffer-network buf))
-    (let* ((net-name (buffer-network buf))
-           (conn (gethash net-name (app-connections app))))
-      ;; Debug: log what we're looking up
-      (format *error-output* "~&DEBUG get-buffer-connection: network=~S conn=~S~%" net-name conn)
-      (force-output *error-output*)
-      conn)))
+    (gethash (buffer-network buf) (app-connections app))))
 
 (defun get-current-connection (app)
   "Get the IRC connection for the current/active buffer."

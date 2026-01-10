@@ -229,24 +229,26 @@
        (irc-send-registration conn)))))
 
 (defun irc-log-error (conn format-string &rest args)
-  "Log error to server buffer."
+  "Log error to server buffer for this connection's network."
   (let ((app (irc-app conn))
         (text (apply #'format nil format-string args)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
-        (clatter.core.dispatch:deliver-message
-         app buf
-         (clatter.core.model:make-message :level :error :nick "*error*" :text text))))))
+      (let ((buf (irc-find-server-buffer conn)))
+        (when buf
+          (clatter.core.dispatch:deliver-message
+           app buf
+           (clatter.core.model:make-message :level :error :nick "*error*" :text text)))))))
 
 (defun irc-log-system (conn format-string &rest args)
-  "Log system message to server buffer."
+  "Log system message to server buffer for this connection's network."
   (let ((app (irc-app conn))
         (text (apply #'format nil format-string args)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
-        (clatter.core.dispatch:deliver-message
-         app buf
-         (clatter.core.model:make-message :level :system :nick "*" :text text))))))
+      (let ((buf (irc-find-server-buffer conn)))
+        (when buf
+          (clatter.core.dispatch:deliver-message
+           app buf
+           (clatter.core.model:make-message :level :system :nick "*" :text text)))))))
 
 (defun irc-handle-message (conn msg)
   "Handle a parsed IRC message."
@@ -729,12 +731,13 @@
               ;; Check if mode affects us (op/voice)
               (irc-update-my-modes conn buf modes)))
           ;; User mode (our own modes)
-          (let ((buf (clatter.core.model:find-buffer app 0)))
-            (clatter.core.dispatch:deliver-message
-             app buf
-             (clatter.core.model:make-message 
-              :level :mode :nick setter
-              :text (format nil "Mode ~a ~a" target mode-str)))))))
+          (let ((buf (irc-find-server-buffer conn)))
+            (when buf
+              (clatter.core.dispatch:deliver-message
+               app buf
+               (clatter.core.model:make-message 
+                :level :mode :nick setter
+                :text (format nil "Mode ~a ~a" target mode-str))))))))
   ;; Request updated channel modes after a change
   (when (and (> (length target) 0) (char= (char target 0) #\#))
     (irc-send conn (format nil "MODE ~a" target))))
