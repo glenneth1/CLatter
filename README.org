@@ -191,7 +191,7 @@ CLatter will decrypt the credential file at startup using =systemd-creds decrypt
 **** pass(1) (GPG encrypted)
 Use =pass(1)= the standard unix password manager, to store and encrypt your password. This works using GPG and the credential is portable. 
 
-1. Install pass using your package manager of choice (see [[https://www.passwordstore.org/][website] for supported platforms. 
+1. Install pass using your package manager of choice (see [[https://www.passwordstore.org/][website]] for supported platforms. 
 
 2. Generate a password =pass generate= 
 
