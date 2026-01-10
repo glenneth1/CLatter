@@ -375,11 +375,16 @@
               (text (clatter.core.protocol:strip-irc-formatting raw-text))
               (parsed-prefix (clatter.core.protocol:parse-prefix prefix))
               (sender-nick (or (clatter.core.protocol:prefix-nick parsed-prefix) "*")))
-         ;; Check for CTCP in NOTICE too (some clients send DCC via NOTICE)
+         ;; Check for CTCP reply in NOTICE (don't respond, just display)
          (if (and (> (length raw-text) 1)
                   (char= (char raw-text 0) (code-char 1))
                   (char= (char raw-text (1- (length raw-text))) (code-char 1)))
-             (irc-handle-ctcp conn sender-nick target raw-text)
+             ;; CTCP reply - just log it, don't respond (prevents loops)
+             (let* ((ctcp-content (subseq raw-text 1 (1- (length raw-text))))
+                    (space-pos (position #\Space ctcp-content))
+                    (ctcp-cmd (if space-pos (subseq ctcp-content 0 space-pos) ctcp-content))
+                    (ctcp-args (if space-pos (subseq ctcp-content (1+ space-pos)) "")))
+               (irc-log-system conn "CTCP ~a reply from ~a: ~a" ctcp-cmd sender-nick ctcp-args))
              ;; Normal NOTICE - dispatch as CLOS event
              (dispatch-event conn
                (make-instance 'clatter.core.events:notice-event
@@ -549,6 +554,9 @@
 
 (defun irc-handle-ctcp (conn sender-nick target raw-text)
   "Handle incoming CTCP request and send appropriate reply."
+  ;; Don't respond to CTCP from ourselves (prevents loops)
+  (when (string-equal sender-nick (irc-nick conn))
+    (return-from irc-handle-ctcp nil))
   ;; Strip the \x01 delimiters
   (let* ((ctcp-content (subseq raw-text 1 (1- (length raw-text))))
          (space-pos (position #\Space ctcp-content))

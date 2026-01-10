@@ -19,6 +19,7 @@
    (:file "src/net/irc")
    (:file "src/net/dcc")
    (:file "src/core/commands")
+   (:file "src/core/command-classes")
    (:file "src/ui/input")
    (:file "src/ui/render")
    (:file "src/ui/keymap")

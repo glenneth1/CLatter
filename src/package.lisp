@@ -12,7 +12,9 @@
   (:export
    #:app #:make-app #:app-ui #:app-buffers #:app-current-buffer-id #:app-buffer-order #:app-connections #:app-dirty-flags #:app-quit-requested
    #:mark-dirty #:dirty-p #:clear-dirty
-   #:buffer #:make-buffer #:buffer-id #:buffer-title #:buffer-kind #:buffer-network #:buffer-scrollback
+   #:buffer #:server-buffer #:channel-buffer #:query-buffer #:dcc-buffer
+   #:make-buffer #:buffer-id #:buffer-title #:buffer-kind #:buffer-network #:buffer-scrollback
+   #:buffer-dcc-connection
    #:create-server-buffer
    #:buffer-unread-count #:buffer-highlight-count #:buffer-scroll-offset #:buffer-members #:buffer-typing-users #:get-typing-nicks
    #:buffer-channel-modes #:buffer-my-modes

@@ -10,22 +10,115 @@
 (defun make-message (&key (ts (get-universal-time)) (level :chat) nick (text "") highlight)
   (make-instance 'message :ts ts :level level :nick nick :text text :highlight highlight))
 
+;;;; ============================================================
+;;;; Buffer Class Hierarchy
+;;;; ============================================================
+
+;;; Base buffer class - common slots for all buffer types
 (defclass buffer ()
   ((id              :initarg :id :accessor buffer-id)
-   (kind            :initarg :kind :reader buffer-kind) ; :server :channel :query
    (title           :initarg :title :accessor buffer-title)
-   (network         :initarg :network :initform nil :accessor buffer-network)  ; network name for multi-network
+   (network         :initarg :network :initform nil :accessor buffer-network)
    (scrollback      :initform (make-ring :capacity 4000) :reader buffer-scrollback)
    (unread-count    :initform 0 :accessor buffer-unread-count)
    (highlight-count :initform 0 :accessor buffer-highlight-count)
-   (scroll-offset   :initform 0 :accessor buffer-scroll-offset)
-   (members         :initform (make-hash-table :test 'equal) :accessor buffer-members)
-   (typing-users    :initform (make-hash-table :test 'equalp) :accessor buffer-typing-users)
-   (channel-modes   :initform "" :accessor buffer-channel-modes)  ; e.g., "+nt"
-   (my-modes        :initform "" :accessor buffer-my-modes)))     ; my modes in this channel e.g., "@" or "+"
+   (scroll-offset   :initform 0 :accessor buffer-scroll-offset))
+  (:documentation "Base class for all IRC buffers."))
 
+;;; Server buffer - for server messages, no members or typing
+(defclass server-buffer (buffer)
+  ()
+  (:documentation "Buffer for server messages and notices."))
+
+;;; Channel buffer - has members, typing, modes
+(defclass channel-buffer (buffer)
+  ((members         :initform (make-hash-table :test 'equal) :accessor buffer-members)
+   (typing-users    :initform (make-hash-table :test 'equalp) :accessor buffer-typing-users)
+   (channel-modes   :initform "" :accessor buffer-channel-modes)
+   (my-modes        :initform "" :accessor buffer-my-modes))
+  (:documentation "Buffer for IRC channels with member tracking."))
+
+;;; Query buffer - private messages, has typing but no member list
+(defclass query-buffer (buffer)
+  ((typing-users    :initform (make-hash-table :test 'equalp) :accessor buffer-typing-users))
+  (:documentation "Buffer for private messages (queries)."))
+
+;;; DCC buffer - for DCC chat sessions
+(defclass dcc-buffer (buffer)
+  ((dcc-connection  :initarg :dcc-connection :initform nil :accessor buffer-dcc-connection))
+  (:documentation "Buffer for DCC chat connections."))
+
+;;; Generic function to get buffer kind (for backward compatibility)
+(defgeneric buffer-kind (buffer)
+  (:documentation "Return the kind of buffer (:server, :channel, :query, :dcc)."))
+
+(defmethod buffer-kind ((buf server-buffer)) :server)
+(defmethod buffer-kind ((buf channel-buffer)) :channel)
+(defmethod buffer-kind ((buf query-buffer)) :query)
+(defmethod buffer-kind ((buf dcc-buffer)) :dcc)
+
+;;; Generic accessors with default methods for buffers that don't have these slots
+(defgeneric buffer-members (buffer)
+  (:documentation "Return the members hash table for a buffer."))
+
+(defmethod buffer-members ((buf buffer))
+  "Default: return empty hash table for buffers without members."
+  (make-hash-table :test 'equal))
+
+(defmethod buffer-members ((buf channel-buffer))
+  (slot-value buf 'members))
+
+(defgeneric buffer-typing-users (buffer)
+  (:documentation "Return the typing-users hash table for a buffer."))
+
+(defmethod buffer-typing-users ((buf buffer))
+  "Default: return empty hash table for buffers without typing."
+  (make-hash-table :test 'equalp))
+
+(defmethod buffer-typing-users ((buf channel-buffer))
+  (slot-value buf 'typing-users))
+
+(defmethod buffer-typing-users ((buf query-buffer))
+  (slot-value buf 'typing-users))
+
+(defgeneric buffer-channel-modes (buffer)
+  (:documentation "Return channel modes string."))
+
+(defmethod buffer-channel-modes ((buf buffer)) "")
+(defmethod buffer-channel-modes ((buf channel-buffer))
+  (slot-value buf 'channel-modes))
+
+(defgeneric (setf buffer-channel-modes) (value buffer)
+  (:documentation "Set channel modes string."))
+
+(defmethod (setf buffer-channel-modes) (value (buf buffer))
+  (declare (ignore value)) nil)
+(defmethod (setf buffer-channel-modes) (value (buf channel-buffer))
+  (setf (slot-value buf 'channel-modes) value))
+
+(defgeneric buffer-my-modes (buffer)
+  (:documentation "Return my modes in this channel."))
+
+(defmethod buffer-my-modes ((buf buffer)) "")
+(defmethod buffer-my-modes ((buf channel-buffer))
+  (slot-value buf 'my-modes))
+
+(defgeneric (setf buffer-my-modes) (value buffer)
+  (:documentation "Set my modes in this channel."))
+
+(defmethod (setf buffer-my-modes) (value (buf buffer))
+  (declare (ignore value)) nil)
+(defmethod (setf buffer-my-modes) (value (buf channel-buffer))
+  (setf (slot-value buf 'my-modes) value))
+
+;;; Factory function - creates appropriate buffer subclass
 (defun make-buffer (&key id (kind :channel) (title "") network)
-  (make-instance 'buffer :id id :kind kind :title title :network network))
+  "Create a buffer of the appropriate type based on KIND."
+  (ecase kind
+    (:server (make-instance 'server-buffer :id id :title title :network network))
+    (:channel (make-instance 'channel-buffer :id id :title title :network network))
+    (:query (make-instance 'query-buffer :id id :title title :network network))
+    (:dcc (make-instance 'dcc-buffer :id id :title title :network network))))
 
 (defclass input-state ()
   ((text        :initform "" :accessor input-text)
