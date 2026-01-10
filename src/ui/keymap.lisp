@@ -73,6 +73,14 @@
       (incf (buffer-scroll-offset buf) n)
       (mark-dirty app :chat))))
 
+(defun %toggle-nicklist (app)
+  "Toggle nick list panel visibility."
+  (let ((ui (app-ui app)))
+    (setf (ui-nicklist-visible ui) (not (ui-nicklist-visible ui)))
+    ;; Recreate windows with new layout
+    (clatter.ui.tui:create-layout-windows app (ui-screen ui))
+    (mark-dirty app :layout :chat :buflist :status :input :nicklist)))
+
 (defun %toggle-split (app)
   "Toggle split pane mode on/off."
   (let ((ui (app-ui app)))
@@ -193,6 +201,8 @@
   (de.anvi.croatoan:bind screen (code-char 24) (lambda (o e) (declare (ignore o e)) (%swap-panes app)))  ;; Ctrl-X swap panes
   ;; Ctrl+] to toggle active pane (where input goes)
   (de.anvi.croatoan:bind screen (code-char 29) (lambda (o e) (declare (ignore o e)) (%toggle-active-pane app)))  ;; Ctrl+] toggle active pane
+  ;; Ctrl-M (Enter is also Ctrl-M, so use Ctrl-O instead) to toggle nick list
+  (de.anvi.croatoan:bind screen (code-char 15) (lambda (o e) (declare (ignore o e)) (%toggle-nicklist app)))  ;; Ctrl-O toggle nick list
 
   ;; raw escape sequence binds (Ghostty/xterm/various terminals)
   (de.anvi.croatoan:bind screen (coerce '(#\Esc #\[ #\A) 'string) (lambda (o e) (declare (ignore o e)) (input-history-prev app)))

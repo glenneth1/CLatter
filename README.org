@@ -8,20 +8,23 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 
 ** Features
 
+- *Multi-Network Support* - Connect to multiple IRC networks simultaneously (e.g., Libera and OFTC)
 - *TLS Support* - Secure connections to IRC servers
-- *SASL Authentication* - Authenticate before connection completes (hides IP)
+- *SASL Authentication* - PLAIN and EXTERNAL (client certificate) authentication
+- *Client Certificate Auth* - Authenticate using TLS client certificates
 - *Auto-Reconnect* - Automatic reconnection with exponential backoff
 - *Connection Health Monitoring* - Detects stale connections and reconnects
 - *Nick Colorization* - Each nick gets a consistent color based on hash
 - *Nick Highlighting* - Messages mentioning your nick are highlighted
 - *Tab Completion* - Press Tab to complete nicks in the current channel
+- *Nick List Panel* - Toggle channel member list with =Ctrl-O=
 - *Input Scrolling* - Long input lines scroll horizontally to keep cursor visible
 - *Readline Keybindings* - Emacs-style cursor movement (Ctrl-A/E/B/F)
 - *Autojoin Management* - Channels are auto-added to autojoin on ~/join~
-- *Multi-buffer Interface* - Server, channel, and query buffers
+- *Multi-buffer Interface* - Server, channel, and query buffers grouped by network
 - *Command History* - Up/Down arrows to navigate input history
 - *Scrollback* - Ctrl-U/D to scroll through message history
-- *Split-Pane View* - View two channels side-by-side
+- *Split-Pane View* - View two channels side-by-side with =Ctrl-W=
 - *CTCP Support* - Responds to VERSION, PING, TIME requests
 - *DCC Support* - Direct client-to-client chat and file transfers
 - *Message Logging* - Automatic logging to =~/.local/share/clatter/logs/=
@@ -31,6 +34,7 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 - *Channel Modes Display* - Shows channel modes and your status (@/+) in status bar
 - *Ignore List* - Hide messages from specific users with ~/ignore~
 - *Away Status* - Set away status with ~/away~
+- *Secure Password Storage* - Support for authinfo.gpg, systemd-creds, and pass(1)
 
 ** Requirements
 

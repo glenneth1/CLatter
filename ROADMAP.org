@@ -48,10 +48,11 @@
 - [X] Export logs to various formats (text, JSON, HTML)
 
 *** v0.4 - Multi-Network
-- [ ] Multiple simultaneous network connections
-- [ ] Network switching commands
-- [ ] Per-network buffer organization
-- [ ] /server command to add/connect networks
+- [X] Multiple simultaneous network connections
+- [X] Per-network buffer organization (buffers grouped by network)
+- [X] Commands route to correct network based on active buffer
+- [X] Nick list panel (Ctrl-O toggle)
+- [X] /members command to show channel members
 
 *** v1.0 - Daemon Mode (Major)
 - [ ] Separate IRC backend daemon process
@@ -72,7 +73,7 @@
 
 *** v0.6 - IRCv3 & UI Improvements
 - [X] IRCv3 MONITOR support (track users online/offline)
-- [X] SASL EXTERNAL authentication (certificate-based) - untested
+- [X] SASL EXTERNAL authentication (certificate-based) - tested and working
 - [X] Channel modes display in status bar
 - [X] User modes display (@/+) in status bar
 - [X] /list command (list channels on server)
@@ -81,6 +82,7 @@
 - [X] /names command (refresh member list)
 - [X] ASCII symbols for cross-platform compatibility (macOS fix)
 - [X] Split-pane status bar shows active pane's info
+- [X] pass(1) password manager support (contributed by @moshhh)
 
 ** Known Issues
 

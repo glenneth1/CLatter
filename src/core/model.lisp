@@ -40,11 +40,14 @@
    (win-buflist :initform nil :accessor ui-win-buflist)
    (win-chat    :initform nil :accessor ui-win-chat)
    (win-chat2   :initform nil :accessor ui-win-chat2)  ;; second pane for split view
+   (win-nicklist :initform nil :accessor ui-win-nicklist)  ;; nick list panel
    (win-status  :initform nil :accessor ui-win-status)
    (win-input   :initform nil :accessor ui-win-input)
    (term-w      :initform 0 :accessor ui-term-w)
    (term-h      :initform 0 :accessor ui-term-h)
    (buflist-w   :initform 28 :accessor ui-buflist-w)
+   (nicklist-w  :initform 20 :accessor ui-nicklist-w)  ;; nick list width
+   (nicklist-visible :initform nil :accessor ui-nicklist-visible)  ;; toggle state
    (input       :initform (make-input-state) :accessor ui-input)
    ;; Split pane state
    (split-mode  :initform nil :accessor ui-split-mode)  ;; nil or :horizontal

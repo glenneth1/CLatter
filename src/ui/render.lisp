@@ -304,6 +304,33 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                   (%clear-and-border wchat2 right-title)
                   (render-chat-pane wchat2 right-buf))))))))
 
+    ;; Render nick list panel if visible
+    (let ((wnicklist (ui-win-nicklist ui)))
+      (when wnicklist
+        (%clear-and-border wnicklist " nicks ")
+        ;; Use active buffer (respects split pane selection)
+        (let* ((active-pane (ui-active-pane ui))
+               (buf (if (and (ui-split-mode ui) (eq active-pane :right))
+                        (let ((split-id (ui-split-buffer-id ui)))
+                          (when (and split-id (< split-id (length (app-buffers app))))
+                            (aref (app-buffers app) split-id)))
+                        (current-buffer app)))
+               (content-w (- (de.anvi.croatoan:width wnicklist) 2))
+               (content-h (- (de.anvi.croatoan:height wnicklist) 2))
+               (row 0))
+          (when (and buf (eq (buffer-kind buf) :channel))
+            (let ((nick-list nil))
+              (maphash (lambda (nick val)
+                         (declare (ignore val))
+                         (push nick nick-list))
+                       (buffer-members buf))
+              (setf nick-list (sort nick-list #'string-lessp))
+              (dolist (nick nick-list)
+                (when (< row content-h)
+                  (%draw-line wnicklist (1+ row) 1 
+                              (subseq nick 0 (min (length nick) content-w)))
+                  (incf row))))))))
+
     ;; status - show info for active pane in split mode
     (let* ((split-p (ui-split-mode ui))
            (active-pane (ui-active-pane ui))
@@ -379,6 +406,9 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
     (let ((wchat2 (ui-win-chat2 ui)))
       (when wchat2
         (de.anvi.croatoan:mark-for-refresh wchat2)))
+    (let ((wnicklist (ui-win-nicklist ui)))
+      (when wnicklist
+        (de.anvi.croatoan:mark-for-refresh wnicklist)))
     (de.anvi.croatoan:mark-for-refresh wstatus)
     (de.anvi.croatoan:mark-for-refresh winput)
     (de.anvi.croatoan:refresh-marked)

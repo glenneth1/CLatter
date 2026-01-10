@@ -403,6 +403,30 @@
                                                :text "Usage: /names [#channel]")))))
      t)
     
+    ;; /members - show channel member list
+    ((string= cmd "MEMBERS")
+     (let* ((buf (clatter.core.model:active-buffer app)))
+       (if (and buf (eq (clatter.core.model:buffer-kind buf) :channel))
+           (let* ((members (clatter.core.model:buffer-members buf))
+                  (nick-list nil))
+             (maphash (lambda (nick val)
+                        (declare (ignore val))
+                        (push nick nick-list))
+                      members)
+             (setf nick-list (sort nick-list #'string-lessp))
+             (de.anvi.croatoan:submit
+               (clatter.core.dispatch:deliver-message
+                app buf
+                (clatter.core.model:make-message :level :system :nick "*"
+                                                 :text (format nil "Members (~d): ~{~a~^, ~}"
+                                                               (length nick-list) nick-list)))))
+           (de.anvi.croatoan:submit
+             (clatter.core.dispatch:deliver-message
+              app (clatter.core.model:current-buffer app)
+              (clatter.core.model:make-message :level :error :nick "*"
+                                               :text "Not in a channel buffer")))))
+     t)
+    
     ;; /list - list channels on server
     ((string= cmd "LIST")
      (let ((pattern (string-trim " " args)))
