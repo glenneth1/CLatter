@@ -864,7 +864,7 @@
     (unless manager
       (de.anvi.croatoan:submit
         (clatter.core.dispatch:deliver-message
-         app (clatter.core.model:find-buffer app 0)
+         app (clatter.core.model:current-buffer app)
          (clatter.core.model:make-message :level :error :text "DCC not initialized")))
       (return-from handle-dcc-command))
     (multiple-value-bind (subcmd rest) (split-first-word args)
@@ -909,14 +909,14 @@
   "Show DCC usage message."
   (de.anvi.croatoan:submit
     (clatter.core.dispatch:deliver-message
-     app (clatter.core.model:find-buffer app 0)
+     app (clatter.core.model:current-buffer app)
      (clatter.core.model:make-message :level :system :text text))))
 
 (defun dcc-show-list (app manager)
   "Show list of DCC connections."
   (let ((connections (clatter.net.dcc:dcc-manager-list manager)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
+      (let ((buf (clatter.core.model:current-buffer app)))
         (if connections
             (progn
               (clatter.core.dispatch:deliver-message
@@ -977,14 +977,16 @@
           (clatter.net.dcc:dcc-manager-remove manager id)
           (de.anvi.croatoan:submit
             (clatter.core.dispatch:deliver-message
-             app (clatter.core.model:find-buffer app 0)
+             app (clatter.core.model:current-buffer app)
              (clatter.core.model:make-message :level :system 
                                               :text (format nil "DCC ~a closed" id)))))
         (dcc-show-usage app "Usage: /dcc close <id>"))))
 
 (defun handle-input-line (app conn line)
-  "Handle a line of input - either command or chat message."
-  (let ((parsed (parse-command line)))
+  "Handle a line of input - either command or chat message.
+   If conn is nil, try to get connection from active buffer."
+  (let ((conn (or conn (clatter.core.model:get-current-connection app)))
+        (parsed (parse-command line)))
     (if parsed
         ;; It's a command
         (let ((cmd (car parsed))

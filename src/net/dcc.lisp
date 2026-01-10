@@ -706,30 +706,24 @@
                                         :text text)))))
 
 (defun dcc-log-system (manager format-string &rest args)
-  "Log a DCC system message to the server buffer."
+  "Log a DCC system message to the current buffer."
   (let* ((app (dcc-app manager))
-         (buf (clatter.core.model:find-buffer app 0))
+         (buf (clatter.core.model:current-buffer app))
          (text (apply #'format nil format-string args)))
     (de.anvi.croatoan:submit
-      (clatter.core.dispatch:deliver-message
-       app buf
-       (clatter.core.model:make-message :level :system :text text)))))
+      (when buf
+        (clatter.core.dispatch:deliver-message
+         app buf
+         (clatter.core.model:make-message :level :system :text text))))))
 
 (defun dcc-notify-offer (manager format-string &rest args)
-  "Notify user of DCC offer - shows in current buffer AND server buffer with highlight."
+  "Notify user of DCC offer - shows in current buffer with highlight."
   (let* ((app (dcc-app manager))
-         (server-buf (clatter.core.model:find-buffer app 0))
          (current-buf (clatter.core.model:current-buffer app))
          (text (apply #'format nil format-string args))
          (msg (clatter.core.model:make-message :level :system :text text :highlight t)))
     (de.anvi.croatoan:submit
-      ;; Always log to server buffer
-      (clatter.core.dispatch:deliver-message app server-buf msg)
-      ;; Increment highlight count on server buffer if not viewing it
-      (unless (eq current-buf server-buf)
-        (incf (clatter.core.model:buffer-highlight-count server-buf))
-        (clatter.core.model:mark-dirty app :buflist)
-        ;; Also show in current buffer so user sees it immediately
-        (clatter.core.dispatch:deliver-message
-         app current-buf
-         (clatter.core.model:make-message :level :system :text text :highlight t))))))
+      (when current-buf
+        (clatter.core.dispatch:deliver-message app current-buf msg)
+        (incf (clatter.core.model:buffer-highlight-count current-buf))
+        (clatter.core.model:mark-dirty app :buflist)))))
