@@ -23,7 +23,8 @@
 (defclass config ()
   ((networks :initarg :networks :accessor config-networks :initform nil)
    (default-network :initarg :default-network :accessor config-default-network :initform nil)
-   (time-format :initarg :time-format :accessor config-time-format :initform "%H:%M")))
+   (time-format :initarg :time-format :accessor config-time-format :initform "%H:%M")
+   (buflist-width :initarg :buflist-width :accessor config-buflist-width :initform 28)))
 
 (defun make-network-config (&rest args)
   (apply #'make-instance 'network-config args))
@@ -60,6 +61,7 @@
     :version 1
     :default-network ,(config-default-network cfg)
     :time-format ,(config-time-format cfg)
+    :buflist-width ,(config-buflist-width cfg)
     :networks ,(mapcar #'network-config-to-plist (config-networks cfg))))
 
 (defun sexp-to-config (sexp)
@@ -70,6 +72,8 @@
         (setf (config-default-network cfg) (getf plist :default-network))
         (when (getf plist :time-format)
           (setf (config-time-format cfg) (getf plist :time-format)))
+        (when (getf plist :buflist-width)
+          (setf (config-buflist-width cfg) (getf plist :buflist-width)))
         (setf (config-networks cfg)
               (mapcar #'plist-to-network-config (getf plist :networks)))))
     cfg))

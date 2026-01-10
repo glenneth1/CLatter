@@ -473,10 +473,11 @@
     ;; Unknown command
     (t nil)))
 
-(defun get-current-network-config ()
-  "Get the network config for the current connection."
-  (when (and *current-connection* *current-config*)
-    (clatter.net.irc:irc-network-config *current-connection*)))
+(defun get-current-network-config (app)
+  "Get the network config for the current buffer's connection."
+  (let ((conn (clatter.core.model:get-current-connection app)))
+    (when (and conn *current-config*)
+      (clatter.net.irc:irc-network-config conn))))
 
 (defun handle-log-command (app args)
   "Handle /log command: view recent logs or search.
@@ -626,7 +627,7 @@
 
 (defun add-to-autojoin (app channel)
   "Add a channel to the autojoin list and save config."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (when net-cfg
       (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))
         (unless (member channel autojoin :test #'string-equal)
@@ -641,7 +642,7 @@
 
 (defun remove-from-autojoin (app channel)
   "Remove a channel from the autojoin list and save config."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (when net-cfg
       (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))
         (if (member channel autojoin :test #'string-equal)
@@ -662,7 +663,7 @@
 
 (defun list-autojoin (app)
   "List all channels in the autojoin list."
-  (let ((net-cfg (get-current-network-config)))
+  (let ((net-cfg (get-current-network-config app)))
     (de.anvi.croatoan:submit
       (if net-cfg
           (let ((autojoin (clatter.core.config:network-config-autojoin net-cfg)))
@@ -863,7 +864,7 @@
     (unless manager
       (de.anvi.croatoan:submit
         (clatter.core.dispatch:deliver-message
-         app (clatter.core.model:find-buffer app 0)
+         app (clatter.core.model:current-buffer app)
          (clatter.core.model:make-message :level :error :text "DCC not initialized")))
       (return-from handle-dcc-command))
     (multiple-value-bind (subcmd rest) (split-first-word args)
@@ -908,14 +909,14 @@
   "Show DCC usage message."
   (de.anvi.croatoan:submit
     (clatter.core.dispatch:deliver-message
-     app (clatter.core.model:find-buffer app 0)
+     app (clatter.core.model:current-buffer app)
      (clatter.core.model:make-message :level :system :text text))))
 
 (defun dcc-show-list (app manager)
   "Show list of DCC connections."
   (let ((connections (clatter.net.dcc:dcc-manager-list manager)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
+      (let ((buf (clatter.core.model:current-buffer app)))
         (if connections
             (progn
               (clatter.core.dispatch:deliver-message
@@ -976,14 +977,16 @@
           (clatter.net.dcc:dcc-manager-remove manager id)
           (de.anvi.croatoan:submit
             (clatter.core.dispatch:deliver-message
-             app (clatter.core.model:find-buffer app 0)
+             app (clatter.core.model:current-buffer app)
              (clatter.core.model:make-message :level :system 
                                               :text (format nil "DCC ~a closed" id)))))
         (dcc-show-usage app "Usage: /dcc close <id>"))))
 
 (defun handle-input-line (app conn line)
-  "Handle a line of input - either command or chat message."
-  (let ((parsed (parse-command line)))
+  "Handle a line of input - either command or chat message.
+   If conn is nil, try to get connection from active buffer."
+  (let ((conn (or conn (clatter.core.model:get-current-connection app)))
+        (parsed (parse-command line)))
     (if parsed
         ;; It's a command
         (let ((cmd (car parsed))

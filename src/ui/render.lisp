@@ -191,18 +191,21 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                  (de.anvi.croatoan:add-string win text-display))))
             (incf y)))))))
 
-(defun maybe-check-connection-health ()
-  "Periodically check connection health (called from render loop)."
+(defun maybe-check-connection-health (app)
+  "Periodically check all connection health (called from render loop)."
   (let ((now (get-universal-time)))
     (when (> (- now *last-health-check*) *health-check-interval*)
       (setf *last-health-check* now)
-      (let ((conn clatter.core.commands:*current-connection*))
-        (when conn
-          (clatter.net.irc:irc-check-health conn))))))
+      ;; Check health of all connections
+      (maphash (lambda (name conn)
+                 (declare (ignore name))
+                 (when conn
+                   (clatter.net.irc:irc-check-health conn)))
+               (app-connections app)))))
 
 (defun render-frame (app)
   ;; Check connection health periodically (every 30 seconds)
-  (maybe-check-connection-health)
+  (maybe-check-connection-health app)
   
   (unless (dirty-p app)
     (return-from render-frame app))
@@ -220,22 +223,58 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
     (%clear-and-border winput nil nil)   ;; no border for input
 
     ;; buffer list (inside border: start at y=1, x=1)
-    ;; Skip nil buffers (removed channels)
+    ;; Group buffers by network - server buffers first, then their channels
     (let ((content-w (- (de.anvi.croatoan:width wbuf) 2))
           (content-h (- (de.anvi.croatoan:height wbuf) 2))
-          (row 0))
-      (loop for i from 0 below (length (app-buffers app))
-            for buf = (aref (app-buffers app) i)
-            when (and buf (< row content-h))
-            do (let* ((marker (if (= i (app-current-buffer-id app)) ">" " "))
-                      (unread (buffer-unread-count buf))
-                      (hi (buffer-highlight-count buf))
-                      (line (format nil "~a~a~@[ (~d)~]~@[ !~d~]"
-                                    marker (buffer-title buf)
-                                    (and (> unread 0) unread)
-                                    (and (> hi 0) hi))))
-                 (%draw-line wbuf (1+ row) 1 (subseq line 0 (min (length line) content-w)))
-                 (incf row))))
+          (row 0)
+          (buffers (app-buffers app))
+          (current-id (app-current-buffer-id app))
+          (visual-order nil))  ; Build visual order for navigation
+      ;; Collect networks and their buffers
+      (let ((networks (make-hash-table :test 'equal))
+            (network-order nil))
+        ;; First pass: group buffers by network, track order by server buffer index
+        (loop for i from 0 below (length buffers)
+              for buf = (aref buffers i)
+              when buf
+              do (let ((net (or (buffer-network buf) "unknown")))
+                   (unless (gethash net networks)
+                     (setf (gethash net networks) nil)  ; Initialize empty list
+                     (push (cons net i) network-order))  ; Track network order by first appearance
+                   (push (cons i buf) (gethash net networks))))
+        ;; Sort networks by their server buffer index (first appearance)
+        (setf network-order (sort network-order #'< :key #'cdr))
+        ;; Render each network's buffers in order
+        (dolist (net-pair network-order)
+          (let* ((net-name (car net-pair))
+                 (buf-list (gethash net-name networks))
+                 (sorted (sort (copy-list buf-list)
+                               (lambda (a b)
+                                 ;; Server buffers first, then alphabetically
+                                 (let ((ka (buffer-kind (cdr a)))
+                                       (kb (buffer-kind (cdr b))))
+                                   (cond ((eq ka :server) t)
+                                         ((eq kb :server) nil)
+                                         (t (string< (buffer-title (cdr a))
+                                                     (buffer-title (cdr b))))))))))
+            (dolist (pair sorted)
+              (push (car pair) visual-order)  ; Add buffer ID to visual order
+              (when (< row content-h)
+                (let* ((i (car pair))
+                       (buf (cdr pair))
+                       (marker (if (= i current-id) ">" " "))
+                       (unread (buffer-unread-count buf))
+                       (hi (buffer-highlight-count buf))
+                       ;; Indent channels under their server
+                       (indent (if (eq (buffer-kind buf) :server) "" "  "))
+                       (line (format nil "~a~a~a~@[ (~d)~]~@[ !~d~]"
+                                     marker indent (buffer-title buf)
+                                     (and (> unread 0) unread)
+                                     (and (> hi 0) hi))))
+                  (%draw-line wbuf (1+ row) 1 (subseq line 0 (min (length line) content-w)))
+                  (incf row)))))))
+      ;; Store visual order for navigation (reversed because we pushed)
+      (setf (app-buffer-order app) (nreverse visual-order)))
 
     ;; chat area: render pane(s)
     (let ((left-buf (current-buffer app))
@@ -291,12 +330,14 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
                               (format nil "~a [~a]" (buffer-title buf) channel-modes)
                               (buffer-title buf))
                           "---"))
+           ;; Get network name for status bar
+           (network-name (when buf (buffer-network buf)))
            ;; Build mode indicator for status bar
            (mode-str (when (and my-modes (> (length my-modes) 0))
                        (format nil "(~a)" my-modes)))
            (shortcuts " | ^P/N buf | ^U/D scroll | ^W split | ^L redraw")
            (line (format nil " [~a]~@[ ~a~]~@[  unread:~d~]~@[  mentions:~d~]~@[  ~a~]~a"
-                         title-str
+                         (if network-name (format nil "~a/~a" network-name title-str) title-str)
                          mode-str
                          (and (> unread 0) unread)
                          (and (> highlights 0) highlights)

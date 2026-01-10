@@ -16,7 +16,7 @@
 (defun maybe-send-typing (app)
   "Send typing notification if enough time has passed since last one."
   (let ((now (get-universal-time))
-        (conn clatter.core.commands:*current-connection*))
+        (conn (clatter.core.model:get-current-connection app)))
     (when (and conn (> (- now *last-typing-sent*) *typing-throttle*))
       (let ((buf (clatter.core.model:active-buffer app)))
         (when (and buf (not (eq (clatter.core.model:buffer-kind buf) :server)))
@@ -106,8 +106,8 @@
       (let ((hist (input-history st)))
         (vector-push-extend line hist)
         (setf (input-history-pos st) nil))
-      ;; Send typing done notification
-      (let ((conn clatter.core.commands:*current-connection*))
+      ;; Get connection for current buffer
+      (let ((conn (clatter.core.model:get-current-connection app)))
         (when conn
           (let ((buf (clatter.core.model:active-buffer app)))
             (when (and buf (not (eq (clatter.core.model:buffer-kind buf) :server)))

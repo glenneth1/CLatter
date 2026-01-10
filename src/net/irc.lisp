@@ -229,24 +229,26 @@
        (irc-send-registration conn)))))
 
 (defun irc-log-error (conn format-string &rest args)
-  "Log error to server buffer."
+  "Log error to server buffer for this connection's network."
   (let ((app (irc-app conn))
         (text (apply #'format nil format-string args)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
-        (clatter.core.dispatch:deliver-message
-         app buf
-         (clatter.core.model:make-message :level :error :nick "*error*" :text text))))))
+      (let ((buf (irc-find-server-buffer conn)))
+        (when buf
+          (clatter.core.dispatch:deliver-message
+           app buf
+           (clatter.core.model:make-message :level :error :nick "*error*" :text text)))))))
 
 (defun irc-log-system (conn format-string &rest args)
-  "Log system message to server buffer."
+  "Log system message to server buffer for this connection's network."
   (let ((app (irc-app conn))
         (text (apply #'format nil format-string args)))
     (de.anvi.croatoan:submit
-      (let ((buf (clatter.core.model:find-buffer app 0)))
-        (clatter.core.dispatch:deliver-message
-         app buf
-         (clatter.core.model:make-message :level :system :nick "*" :text text))))))
+      (let ((buf (irc-find-server-buffer conn)))
+        (when buf
+          (clatter.core.dispatch:deliver-message
+           app buf
+           (clatter.core.model:make-message :level :system :nick "*" :text text)))))))
 
 (defun irc-handle-message (conn msg)
   "Handle a parsed IRC message."
@@ -574,6 +576,18 @@
            (clatter.core.model:make-message :level :chat :nick sender-nick :text text :ts ts)
            :highlightp highlight))))))
 
+(defun irc-find-server-buffer (conn)
+  "Find the server buffer for this connection's network."
+  (let* ((app (irc-app conn))
+         (network-name (clatter.core.config:network-config-name (irc-network-config conn)))
+         (buffers (clatter.core.model:app-buffers app)))
+    (loop for i from 0 below (length buffers)
+          for buf = (aref buffers i)
+          when (and buf
+                    (eq (clatter.core.model:buffer-kind buf) :server)
+                    (string-equal (clatter.core.model:buffer-network buf) network-name))
+            return buf)))
+
 (defun irc-deliver-notice (conn target sender-nick text)
   "Deliver a NOTICE to the appropriate buffer. CTCP replies go to server buffer."
   (let ((app (irc-app conn)))
@@ -588,11 +602,20 @@
                                        sender-nick 
                                        (subseq text 1 (1- (length text))))
                                text))
-             ;; CTCP replies and notices to us go to server buffer
-             (buf (if (or is-ctcp
-                          (string= target "*") 
-                          (string= target (irc-nick conn)))
-                      (clatter.core.model:find-buffer app 0)
+             ;; Server notices (from AUTH, *, or to our nick) go to server buffer
+             ;; Also route notices from non-channel targets that aren't user queries
+             (is-server-notice (or is-ctcp
+                                   (string= target "*")
+                                   (string= target (irc-nick conn))
+                                   (string-equal sender-nick "AUTH")
+                                   (string-equal sender-nick "NickServ")
+                                   (string-equal sender-nick "ChanServ")
+                                   ;; If target doesn't start with # and isn't a nick we know, it's server-related
+                                   (and (> (length target) 0)
+                                        (not (char= (char target 0) #\#))
+                                        (not (irc-find-buffer conn target)))))
+             (buf (if is-server-notice
+                      (irc-find-server-buffer conn)
                       (irc-find-or-create-buffer conn target))))
         (clatter.core.dispatch:deliver-message
          app buf
@@ -708,12 +731,13 @@
               ;; Check if mode affects us (op/voice)
               (irc-update-my-modes conn buf modes)))
           ;; User mode (our own modes)
-          (let ((buf (clatter.core.model:find-buffer app 0)))
-            (clatter.core.dispatch:deliver-message
-             app buf
-             (clatter.core.model:make-message 
-              :level :mode :nick setter
-              :text (format nil "Mode ~a ~a" target mode-str)))))))
+          (let ((buf (irc-find-server-buffer conn)))
+            (when buf
+              (clatter.core.dispatch:deliver-message
+               app buf
+               (clatter.core.model:make-message 
+                :level :mode :nick setter
+                :text (format nil "Mode ~a ~a" target mode-str))))))))
   ;; Request updated channel modes after a change
   (when (and (> (length target) 0) (char= (char target 0) #\#))
     (irc-send conn (format nil "MODE ~a" target))))
@@ -895,12 +919,15 @@
         (clatter.core.model:mark-dirty app :status)))))
 
 (defun irc-find-buffer (conn target)
-  "Find buffer for target (channel or nick)."
+  "Find buffer for target (channel or nick) on this connection's network."
   (let* ((app (irc-app conn))
+         (network-name (clatter.core.config:network-config-name (irc-network-config conn)))
          (buffers (clatter.core.model:app-buffers app)))
     (loop for i from 0 below (length buffers)
           for buf = (aref buffers i)
-          when (string-equal (clatter.core.model:buffer-title buf) target)
+          when (and buf
+                    (string-equal (clatter.core.model:buffer-title buf) target)
+                    (string-equal (clatter.core.model:buffer-network buf) network-name))
             return buf)))
 
 (defun irc-find-or-create-buffer (conn target)
@@ -912,7 +939,8 @@
   "Create a new buffer for a channel."
   (let* ((app (irc-app conn))
          (kind (if (char= (char channel 0) #\#) :channel :query))
-         (buf (clatter.core.model:make-buffer :id -1 :kind kind :title channel)))  ;; ID set in submit
+         (network-name (clatter.core.config:network-config-name (irc-network-config conn)))
+         (buf (clatter.core.model:make-buffer :id -1 :kind kind :title channel :network network-name)))  ;; ID set in submit
     (de.anvi.croatoan:submit
       (let ((buffers (clatter.core.model:app-buffers app)))
         (setf (clatter.core.model:buffer-id buf) (length buffers))
@@ -974,12 +1002,18 @@
 
 (defun start-irc-connection (app network-id network-config)
   "Start an IRC connection in a background thread."
-  (let ((conn (make-irc-connection app network-id network-config)))
+  (let* ((network-name (clatter.core.config:network-config-name network-config))
+         (conn (make-irc-connection app network-id network-config)))
+    ;; Register connection in app
+    (setf (gethash network-name (clatter.core.model:app-connections app)) conn)
+    ;; Create server buffer for this network
+    (de.anvi.croatoan:submit
+      (clatter.core.model:create-server-buffer app network-name))
     (setf (irc-thread conn)
           (bordeaux-threads:make-thread
            (lambda ()
              (irc-connection-loop conn))
-           :name (format nil "irc-~a" (clatter.core.config:network-config-name network-config))))
+           :name (format nil "irc-~a" network-name)))
     conn))
 
 (defun irc-check-health (conn)

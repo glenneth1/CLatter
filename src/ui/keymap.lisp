@@ -1,15 +1,15 @@
 (in-package #:clatter.ui.keymap)
 
-(defun %find-next-valid-buffer (app start-id direction)
-  "Find the next non-nil buffer in the given direction (+1 or -1).
-   Returns the buffer id, wrapping around if needed."
-  (let* ((buffers (app-buffers app))
-         (len (length buffers)))
-    (loop for i from 1 to len
-          for id = (mod (+ start-id (* i direction)) len)
-          when (aref buffers id)
-          return id
-          finally (return 0))))  ;; fallback to server buffer
+(defun %find-visual-position (app buffer-id)
+  "Find the position of buffer-id in the visual order list."
+  (let ((order (clatter.core.model:app-buffer-order app)))
+    (position buffer-id order)))
+
+(defun %get-visual-buffer-id (app visual-pos)
+  "Get the buffer ID at the given visual position."
+  (let ((order (clatter.core.model:app-buffer-order app)))
+    (when (and order (>= visual-pos 0) (< visual-pos (length order)))
+      (nth visual-pos order))))
 
 (defun %set-current-buffer (app id)
   ;; Ensure we land on a valid (non-nil) buffer
@@ -17,22 +17,46 @@
          (len (length buffers))
          (valid-id (if (and (>= id 0) (< id len) (aref buffers id))
                        id
-                       (%find-next-valid-buffer app id 1))))
+                       ;; Fallback to first buffer in visual order
+                       (let ((order (clatter.core.model:app-buffer-order app)))
+                         (if order (first order) 0)))))
     (setf (app-current-buffer-id app) valid-id)
     ;; Clear unread/highlight counts when viewing buffer
     (let ((buf (current-buffer app)))
       (when buf
         (setf (clatter.core.model:buffer-unread-count buf) 0)
-        (setf (clatter.core.model:buffer-highlight-count buf) 0)))
+        (setf (clatter.core.model:buffer-highlight-count buf) 0)
+        ;; Auto-refresh member list for channels
+        (when (eq (buffer-kind buf) :channel)
+          (let ((conn (clatter.core.model:get-buffer-connection app buf)))
+            (when conn
+              (clatter.net.irc:irc-send conn 
+                (format nil "NAMES ~a" (buffer-title buf))))))))
     (mark-dirty app :chat :buflist :status :input)))
 
 (defun %buf-next (app)
-  (let ((next-id (%find-next-valid-buffer app (app-current-buffer-id app) 1)))
-    (%set-current-buffer app next-id)))
+  "Move to next buffer in visual order."
+  (let* ((order (clatter.core.model:app-buffer-order app))
+         (current-id (app-current-buffer-id app))
+         (pos (%find-visual-position app current-id))
+         (next-pos (if pos
+                       (mod (1+ pos) (length order))
+                       0))
+         (next-id (%get-visual-buffer-id app next-pos)))
+    (when next-id
+      (%set-current-buffer app next-id))))
 
 (defun %buf-prev (app)
-  (let ((prev-id (%find-next-valid-buffer app (app-current-buffer-id app) -1)))
-    (%set-current-buffer app prev-id)))
+  "Move to previous buffer in visual order."
+  (let* ((order (clatter.core.model:app-buffer-order app))
+         (current-id (app-current-buffer-id app))
+         (pos (%find-visual-position app current-id))
+         (prev-pos (if pos
+                       (mod (1- pos) (length order))
+                       0))
+         (prev-id (%get-visual-buffer-id app prev-pos)))
+    (when prev-id
+      (%set-current-buffer app prev-id))))
 
 (defun %scroll-up (app &optional (n 5))
   "Scroll up to see newer messages (decrease offset)."
@@ -55,10 +79,14 @@
     (if (ui-split-mode ui)
         ;; Turn off split
         (setf (ui-split-mode ui) nil)
-        ;; Turn on split - use next valid buffer as second pane
-        (let* ((next-id (%find-next-valid-buffer app (app-current-buffer-id app) 1))
-               (left-buf (aref (app-buffers app) (app-current-buffer-id app)))
-               (right-buf (aref (app-buffers app) next-id)))
+        ;; Turn on split - use next buffer in visual order as second pane
+        (let* ((order (clatter.core.model:app-buffer-order app))
+               (current-id (app-current-buffer-id app))
+               (pos (%find-visual-position app current-id))
+               (next-pos (if (and pos order) (mod (1+ pos) (length order)) 0))
+               (next-id (if order (nth next-pos order) 0))
+               (left-buf (clatter.core.model:find-buffer app current-id))
+               (right-buf (clatter.core.model:find-buffer app next-id)))
           (when (and left-buf right-buf)
             (setf (ui-split-mode ui) :horizontal
                   (ui-split-buffer-id ui) next-id
