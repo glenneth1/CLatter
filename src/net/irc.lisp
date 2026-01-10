@@ -525,8 +525,14 @@
               (target (first params))
               (parsed-tags (clatter.core.protocol:parse-irc-tags tags))
               (typing-state (cdr (assoc "+typing" parsed-tags :test #'string=))))
-         (when typing-state
-           (irc-handle-typing conn nick target typing-state))))
+         (when (and typing-state (not (string-equal nick (irc-nick conn))))
+           ;; Dispatch as CLOS event (skip our own typing)
+           (dispatch-event conn
+             (make-instance 'clatter.core.events:typing-event
+                            :connection conn
+                            :nick nick
+                            :target target
+                            :state typing-state)))))
       
       ;; BATCH - start or end a batch of related messages
       ((string= command "BATCH")

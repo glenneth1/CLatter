@@ -249,3 +249,25 @@
       (dolist (name names)
         (clatter.core.model:buffer-add-member buf name)))))
 
+;;;; ============================================================
+;;;; TYPING Handler
+;;;; ============================================================
+
+(defmethod handle-event ((event typing-event) app)
+  "Handle typing indicator - update buffer's typing-users hash."
+  (let* ((conn (event-connection event))
+         (nick (event-nick event))
+         (target (event-target event))
+         (state (event-state event))
+         (network-id (clatter.net.irc:irc-network-id conn))
+         (buf (clatter.core.model:find-buffer-by-network app network-id target)))
+    (when buf
+      (let ((typing-users (clatter.core.model:buffer-typing-users buf)))
+        (cond
+          ((string-equal state "active")
+           (setf (gethash nick typing-users) (get-universal-time)))
+          ((or (string-equal state "done")
+               (string-equal state "paused"))
+           (remhash nick typing-users)))
+        (clatter.core.model:mark-dirty app :status)))))
+
