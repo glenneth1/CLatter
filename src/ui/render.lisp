@@ -4,15 +4,10 @@
 (defvar *last-health-check* 0 "Universal time of last connection health check")
 (defparameter *health-check-interval* 30 "Seconds between health checks")
 
-;; Nick color palette - bright colors that work on dark backgrounds
-(defparameter *nick-colors*
-  '(:red :green :yellow :blue :magenta :cyan
-    :lime :maroon :olive :navy :purple :teal))
-
+;; Nick color - now uses theme system
 (defun nick-color (nick)
-  "Hash a nick to a consistent color from the palette."
-  (let ((hash (reduce #'+ (map 'list #'char-code nick))))
-    (nth (mod hash (length *nick-colors*)) *nick-colors*)))
+  "Hash a nick to a consistent color from the current theme."
+  (theme-nick-color (current-theme) nick))
 
 (defun format-time (universal-time fmt)
   "Format universal time using format string.
@@ -55,38 +50,32 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
   (setf (de.anvi.croatoan:cursor-position-x win) x)
   (format win "~a" text))
 
-;; Unicode box-drawing characters for thin borders
-(defparameter *box-h* #\─)      ;; horizontal
-(defparameter *box-v* #\│)      ;; vertical
-(defparameter *box-tl* #\┌)     ;; top-left
-(defparameter *box-tr* #\┐)     ;; top-right
-(defparameter *box-bl* #\└)     ;; bottom-left
-(defparameter *box-br* #\┘)     ;; bottom-right
-
+;; Box drawing now uses theme system
 (defun %draw-box (win)
-  "Draw a thin Unicode box border around the window content area."
+  "Draw a box border around the window content area using theme characters."
   (let ((h (de.anvi.croatoan:height win))
-        (w (de.anvi.croatoan:width win)))
+        (w (de.anvi.croatoan:width win))
+        (theme (current-theme)))
     (when (and (> h 1) (> w 1))
       ;; top border
       (setf (de.anvi.croatoan:cursor-position-y win) 0)
       (setf (de.anvi.croatoan:cursor-position-x win) 0)
-      (format win "~a" *box-tl*)
-      (loop repeat (- w 2) do (format win "~a" *box-h*))
-      (format win "~a" *box-tr*)
+      (format win "~a" (theme-box-tl theme))
+      (loop repeat (- w 2) do (format win "~a" (theme-box-h theme)))
+      (format win "~a" (theme-box-tr theme))
       ;; bottom border
       (setf (de.anvi.croatoan:cursor-position-y win) (1- h))
       (setf (de.anvi.croatoan:cursor-position-x win) 0)
-      (format win "~a" *box-bl*)
-      (loop repeat (- w 2) do (format win "~a" *box-h*))
-      (format win "~a" *box-br*)
+      (format win "~a" (theme-box-bl theme))
+      (loop repeat (- w 2) do (format win "~a" (theme-box-h theme)))
+      (format win "~a" (theme-box-br theme))
       ;; side borders
       (loop for y from 1 below (1- h) do
         (setf (de.anvi.croatoan:cursor-position-y win) y)
         (setf (de.anvi.croatoan:cursor-position-x win) 0)
-        (format win "~a" *box-v*)
+        (format win "~a" (theme-box-v theme))
         (setf (de.anvi.croatoan:cursor-position-x win) (1- w))
-        (format win "~a" *box-v*)))))
+        (format win "~a" (theme-box-v theme))))))
 
 (defun %clear-and-border (win &optional (title nil) (draw-border t))
   (de.anvi.croatoan:clear win)
@@ -102,18 +91,8 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
         (format win "~a" title)))))
 
 (defun level-color (level)
-  "Return the color for a message level."
-  (case level
-    (:join :green)
-    (:part :yellow)
-    (:quit :yellow)
-    (:away :magenta)
-    (:kick :red)
-    (:mode :cyan)
-    (:notice :cyan)
-    (:system :blue)
-    (:error :red)
-    (otherwise nil)))  ;; nil means use nick color for :chat
+  "Return the color for a message level from the current theme."
+  (theme-level-color (current-theme) level))
 
 (defun render-chat-pane (win buf)
   "Render a buffer's messages into a chat window pane."

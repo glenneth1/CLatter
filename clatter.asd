@@ -21,6 +21,7 @@
    (:file "src/core/commands")
    (:file "src/core/command-classes")
    (:file "src/ui/input")
+   (:file "src/ui/theme")
    (:file "src/ui/render")
    (:file "src/ui/keymap")
    (:file "src/ui/tui")
