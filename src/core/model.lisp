@@ -210,14 +210,17 @@
 (defun active-buffer (app)
   "Return the buffer that should receive input (respects active pane in split mode)."
   (let ((ui (app-ui app)))
-    (if (and ui (ui-split-mode ui) (eq (ui-active-pane ui) :right))
-        (let ((right-buf (find-buffer app (ui-split-buffer-id ui))))
-          (if right-buf
-              right-buf
-              ;; Right buffer is nil, fall back to current-buffer and disable split
+    (if (and ui (ui-split-mode ui) 
+             (member (ui-active-pane ui) '(:right :bottom)))
+        ;; Active pane is the split pane (right in horizontal, bottom in vertical)
+        (let ((split-buf (find-buffer app (ui-split-buffer-id ui))))
+          (if split-buf
+              split-buf
+              ;; Split buffer is nil, fall back to current-buffer and disable split
               (progn
                 (setf (ui-split-mode ui) nil)
                 (current-buffer app))))
+        ;; Active pane is the main pane (left in horizontal, top in vertical)
         (current-buffer app))))
 
 (defun get-buffer-connection (app buf)
