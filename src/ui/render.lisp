@@ -266,7 +266,7 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
         ;; In split mode, show buffer name in border with active indicator
         (when (ui-split-mode ui)
           (let ((left-title (format nil " ~a~a "
-                                    (if (eq active-pane :left) ">> " "")
+                                    (if (member active-pane '(:left :top)) ">> " "")
                                     (buffer-title left-buf))))
             (%clear-and-border wchat left-title))
           (render-chat-pane wchat left-buf))
@@ -282,7 +282,7 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
             (let ((right-buf (aref (app-buffers app) split-buf-id)))
               (when right-buf  ;; Guard against nil buffer
                 (let ((right-title (format nil " ~a~a "
-                                           (if (eq active-pane :right) ">> " "")
+                                           (if (member active-pane '(:right :bottom)) ">> " "")
                                            (buffer-title right-buf))))
                   (%clear-and-border wchat2 right-title)
                   (render-chat-pane wchat2 right-buf))))))))
