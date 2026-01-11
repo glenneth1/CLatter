@@ -226,11 +226,12 @@
 
 (defun remove-buffer (app buffer-id)
   "Remove a buffer from the app. Cannot remove the server buffer (id 0).
-   Returns t if removed, nil otherwise."
+   Returns t if removed, nil otherwise.
+   Automatically compacts buffer vector to prevent memory leaks."
   (when (and (> buffer-id 0) (< buffer-id (length (app-buffers app))))
     (let ((buffers (app-buffers app))
           (ui (app-ui app)))
-      ;; Mark the buffer slot as nil (we can't easily shrink the vector without breaking IDs)
+      ;; Mark the buffer slot as nil
       (setf (aref buffers buffer-id) nil)
       ;; If current buffer was removed, switch to server buffer
       (when (= (app-current-buffer-id app) buffer-id)
@@ -239,8 +240,53 @@
       (when (and (ui-split-mode ui) (= (ui-split-buffer-id ui) buffer-id))
         (setf (ui-split-mode ui) nil
               (ui-split-buffer-id ui) nil))
+      ;; Compact buffers to reclaim memory
+      (compact-buffers app)
       (mark-dirty app :buflist :chat :status)
       t)))
+
+(defun compact-buffers (app)
+  "Remove nil slots from buffer vector and update all buffer IDs.
+   This prevents memory leaks from accumulated nil slots after buffer removal.
+   Preserves buffer order and updates current-buffer-id and split-buffer-id."
+  (let* ((old-buffers (app-buffers app))
+         (old-len (length old-buffers))
+         (ui (app-ui app))
+         (old-current-id (app-current-buffer-id app))
+         (old-split-id (when ui (ui-split-buffer-id ui)))
+         ;; Build mapping from old IDs to new IDs
+         (id-map (make-hash-table :test 'eql))
+         (new-buffers (make-array 16 :adjustable t :fill-pointer 0))
+         (new-id 0))
+    ;; First pass: collect non-nil buffers and build ID mapping
+    (loop for old-id from 0 below old-len
+          for buf = (aref old-buffers old-id)
+          when buf do
+            (setf (gethash old-id id-map) new-id)
+            (setf (buffer-id buf) new-id)
+            (vector-push-extend buf new-buffers)
+            (incf new-id))
+    ;; Update current buffer ID
+    (let ((new-current (gethash old-current-id id-map)))
+      (setf (app-current-buffer-id app)
+            (if new-current new-current 0)))
+    ;; Update split buffer ID if in split mode
+    (when (and ui old-split-id)
+      (let ((new-split (gethash old-split-id id-map)))
+        (if new-split
+            (setf (ui-split-buffer-id ui) new-split)
+            ;; Split buffer was removed, disable split mode
+            (setf (ui-split-mode ui) nil
+                  (ui-split-buffer-id ui) nil))))
+    ;; Update buffer order list
+    (let ((old-order (app-buffer-order app)))
+      (when old-order
+        (setf (app-buffer-order app)
+              (loop for old-id in old-order
+                    for new-id = (gethash old-id id-map)
+                    when new-id collect new-id))))
+    ;; Replace the buffer vector
+    (setf (app-buffers app) new-buffers)))
 
 (defun find-buffer-by-title (app title)
   "Find a buffer by its title. Returns the buffer or nil."

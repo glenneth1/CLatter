@@ -27,7 +27,7 @@
    #:input-state #:make-input-state #:input-text #:input-cursor #:input-history #:input-history-pos
    #:find-buffer #:current-buffer #:active-buffer
    #:get-buffer-connection #:get-current-connection
-   #:remove-buffer #:find-buffer-by-title
+   #:remove-buffer #:compact-buffers #:find-buffer-by-title
    #:app-ignore-list #:ignore-nick #:unignore-nick #:ignored-p #:list-ignored
    #:buffer-add-member #:buffer-remove-member #:buffer-has-member-p #:buffer-member-list
    #:app-buffers-list #:find-buffer-by-network #:create-buffer))
