@@ -347,6 +347,7 @@
            ((and (> (length raw-text) 1)
                  (char= (char raw-text 0) (code-char 1))
                  (char= (char raw-text (1- (length raw-text))) (code-char 1)))
+            (irc-log-system conn "CTCP received from ~a: ~a" sender-nick (subseq raw-text 1 (1- (length raw-text))))
             (irc-handle-ctcp conn sender-nick target raw-text))
            ;; If part of a batch, accumulate instead of delivering
            (batch-id
