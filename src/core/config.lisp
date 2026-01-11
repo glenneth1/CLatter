@@ -92,8 +92,81 @@
   "Load config from file, or return empty config if not found."
   (if (probe-file *config-file*)
       (with-open-file (in *config-file* :direction :input)
-        (sexp-to-config (read in nil nil)))
+        (let ((cfg (sexp-to-config (read in nil nil))))
+          ;; Validate on load
+          (validate-config cfg)
+          cfg))
       (make-config)))
+
+;;; Config validation
+
+(defun validate-network-config (nc)
+  "Validate a network config. Returns list of (level message) pairs.
+   Level is :error or :warning."
+  (let ((issues nil)
+        (name (network-config-name nc)))
+    ;; Required fields
+    (unless (and name (> (length name) 0))
+      (push (list :error "Network missing :name") issues))
+    (unless (network-config-server nc)
+      (push (list :error (format nil "[~a] Missing :server" (or name "?"))) issues))
+    (unless (network-config-nick nc)
+      (push (list :error (format nil "[~a] Missing :nick" (or name "?"))) issues))
+    ;; Port validation
+    (let ((port (network-config-port nc)))
+      (when (and port (or (< port 1) (> port 65535)))
+        (push (list :error (format nil "[~a] Invalid port: ~d" name port)) issues)))
+    ;; TLS/port consistency
+    (when (and (network-config-tls nc) 
+               (member (network-config-port nc) '(6667 6668 6669)))
+      (push (list :warning (format nil "[~a] TLS enabled but using non-TLS port ~d" 
+                                  name (network-config-port nc))) issues))
+    ;; SASL validation
+    (let ((sasl (network-config-sasl nc)))
+      (when sasl
+        (unless (member sasl '(:plain :external))
+          (push (list :error (format nil "[~a] Invalid SASL type: ~a (use :plain or :external)" 
+                                    name sasl)) issues))
+        (when (and (eq sasl :plain) (not (network-config-nickserv-pw nc)))
+          (push (list :warning (format nil "[~a] SASL :plain requires :nickserv-pw" name)) issues))
+        (when (and (eq sasl :external) (not (network-config-client-cert nc)))
+          (push (list :warning (format nil "[~a] SASL :external requires :client-cert" name)) issues))))
+    ;; Client cert validation
+    (let ((cert (network-config-client-cert nc)))
+      (when (and cert (not (probe-file cert)))
+        (push (list :warning (format nil "[~a] Client cert not found: ~a" name cert)) issues)))
+    ;; Autojoin validation
+    (let ((autojoin (network-config-autojoin nc)))
+      (when autojoin
+        (dolist (chan autojoin)
+          (unless (and (stringp chan) (> (length chan) 1) 
+                       (member (char chan 0) '(#\# #\& #\+ #\!)))
+            (push (list :warning (format nil "[~a] Invalid autojoin channel: ~a" name chan)) issues)))))
+    (nreverse issues)))
+
+(defun validate-config (cfg)
+  "Validate entire config. Prints warnings/errors to *error-output*.
+   Returns t if valid (no errors), nil if errors found."
+  (let ((all-issues nil)
+        (has-errors nil))
+    ;; Validate each network
+    (dolist (nc (config-networks cfg))
+      (let ((issues (validate-network-config nc)))
+        (setf all-issues (append all-issues issues))))
+    ;; Check for duplicate network names
+    (let ((names (mapcar #'network-config-name (config-networks cfg))))
+      (dolist (name names)
+        (when (> (count name names :test #'string-equal) 1)
+          (push (list :error (format nil "Duplicate network name: ~a" name)) all-issues))))
+    ;; Report issues
+    (dolist (issue all-issues)
+      (let ((level (first issue))
+            (msg (second issue)))
+        (when (eq level :error)
+          (setf has-errors t))
+        (format *error-output* "~&[CONFIG ~a] ~a~%" 
+                (if (eq level :error) "ERROR" "WARNING") msg)))
+    (not has-errors)))
 
 (defun find-network-config (cfg name)
   "Find network config by name."
