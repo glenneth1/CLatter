@@ -53,6 +53,14 @@
    #:parse-irc-line #:format-irc-line
    #:parse-irc-tags #:get-server-time #:parse-iso8601-time
    #:parse-prefix #:prefix-nick #:strip-irc-formatting
+   ;; Input sanitization
+   #:sanitize-irc-input #:validate-irc-input
+   ;; Channel validation
+   #:channel-prefix-p #:channel-name-p #:valid-channel-name-p
+   ;; Message length
+   #:+irc-max-line-length+ #:+irc-safe-message-length+
+   #:message-overhead #:max-message-length #:split-long-message
+   ;; IRC commands
    #:irc-nick #:irc-user #:irc-pass #:irc-join #:irc-part
    #:irc-privmsg #:irc-notice #:irc-quit #:irc-pong #:irc-ping #:irc-cap
    #:irc-whois #:irc-topic #:irc-kick #:irc-mode #:irc-away #:irc-ctcp-reply

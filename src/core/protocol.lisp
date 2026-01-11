@@ -3,6 +3,69 @@
 ;;; IRC Protocol parsing and formatting
 ;;; Reference: RFC 1459, RFC 2812, IRCv3
 
+;;; Input sanitization - prevent IRC command injection
+
+(defun sanitize-irc-input (text)
+  "Remove dangerous characters from user input.
+   Removes CR, LF, and NUL to prevent IRC command injection."
+  (when text
+    (remove-if (lambda (ch)
+                 (member (char-code ch) '(#x0D #x0A #x00)))
+               text)))
+
+(defun validate-irc-input (text &key (max-length 400))
+  "Validate and sanitize user input before sending to IRC.
+   Returns (values sanitized-text valid-p warning-message).
+   - Removes CRLF/NUL characters
+   - Truncates to max-length if needed"
+  (cond
+    ((or (null text) (zerop (length text)))
+     (values "" nil "Empty message"))
+    (t
+     (let* ((sanitized (sanitize-irc-input text))
+            (truncated (if (> (length sanitized) max-length)
+                           (subseq sanitized 0 max-length)
+                           sanitized))
+            (warning (cond
+                       ((not (string= text sanitized))
+                        "Message contained invalid characters (removed)")
+                       ((not (string= sanitized truncated))
+                        (format nil "Message truncated to ~d characters" max-length))
+                       (t nil))))
+       (values truncated t warning)))))
+
+;;; Channel name validation (RFC 2812)
+
+(defun channel-prefix-p (char)
+  "Check if CHAR is a valid IRC channel prefix.
+   # - Normal channel
+   & - Local channel (not propagated)
+   + - Modeless channel
+   ! - Safe channel (unique name)"
+  (member char '(#\# #\& #\+ #\!) :test #'char=))
+
+(defun channel-name-p (string)
+  "Check if STRING looks like a channel name.
+   Must start with channel prefix and be at least 2 chars."
+  (and (stringp string)
+       (> (length string) 1)
+       (channel-prefix-p (char string 0))))
+
+(defun valid-channel-name-p (name)
+  "Validate channel name according to RFC 2812.
+   - Starts with #&+!
+   - No spaces, commas, or control-G (bell)
+   - Max 50 characters (typical server limit)"
+  (and (channel-name-p name)
+       (<= (length name) 50)
+       (notany (lambda (ch)
+                 (or (char= ch #\Space)
+                     (char= ch #\,)
+                     (char= ch (code-char 7))))  ; ^G (bell)
+               name)))
+
+;;; IRC formatting code stripping
+
 (defun strip-irc-formatting (text)
   "Remove IRC formatting codes: ^B (bold), ^C (color), ^O (reset), ^R (reverse), ^_ (underline)."
   (when text
@@ -59,59 +122,72 @@
   (first prefix))
 
 (defun parse-irc-line (line)
-  "Parse an IRC protocol line into an irc-message object."
-  (let ((pos 0)
-        (len (length line))
-        tags prefix command params)
-    ;; Skip leading whitespace
-    (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
-    
-    ;; Parse tags (IRCv3) - starts with @
-    (when (and (< pos len) (char= (char line pos) #\@))
-      (incf pos)
-      (let ((end (position #\Space line :start pos)))
-        (when end
-          (setf tags (subseq line pos end))
-          (setf pos (1+ end)))))
-    
-    ;; Skip whitespace
-    (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
-    
-    ;; Parse prefix - starts with :
-    (when (and (< pos len) (char= (char line pos) #\:))
-      (incf pos)
-      (let ((end (position #\Space line :start pos)))
-        (when end
-          (setf prefix (subseq line pos end))
-          (setf pos (1+ end)))))
-    
-    ;; Skip whitespace
-    (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
-    
-    ;; Parse command
-    (let ((end (or (position #\Space line :start pos) len)))
-      (setf command (string-upcase (subseq line pos end)))
-      (setf pos end))
-    
-    ;; Parse params
-    (loop while (< pos len) do
-      ;; Skip whitespace
-      (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
-      (when (< pos len)
-        (if (char= (char line pos) #\:)
-            ;; Trailing param (rest of line)
-            (progn
-              (push (subseq line (1+ pos)) params)
-              (setf pos len))
-            ;; Regular param
-            (let ((end (or (position #\Space line :start pos) len)))
-              (push (subseq line pos end) params)
-              (setf pos end)))))
-    
-    (make-irc-message :tags tags
-                      :prefix prefix
-                      :command command
-                      :params (nreverse params))))
+  "Parse an IRC protocol line into an irc-message object.
+   Returns a synthetic ERROR message if parsing fails."
+  (handler-case
+      (let ((pos 0)
+            (len (length line))
+            tags prefix command params)
+        ;; Skip leading whitespace
+        (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
+        
+        ;; Parse tags (IRCv3) - starts with @
+        (when (and (< pos len) (char= (char line pos) #\@))
+          (incf pos)
+          (let ((end (position #\Space line :start pos)))
+            (when end
+              (setf tags (subseq line pos end))
+              (setf pos (1+ end)))))
+        
+        ;; Skip whitespace
+        (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
+        
+        ;; Parse prefix - starts with :
+        (when (and (< pos len) (char= (char line pos) #\:))
+          (incf pos)
+          (let ((end (position #\Space line :start pos)))
+            (when end
+              (setf prefix (subseq line pos end))
+              (setf pos (1+ end)))))
+        
+        ;; Skip whitespace
+        (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
+        
+        ;; Parse command
+        (let ((end (or (position #\Space line :start pos) len)))
+          (setf command (string-upcase (subseq line pos end)))
+          (setf pos end))
+        
+        ;; Validate we got a command
+        (when (or (null command) (zerop (length command)))
+          (error "No command in IRC line"))
+        
+        ;; Parse params
+        (loop while (< pos len) do
+          ;; Skip whitespace
+          (loop while (and (< pos len) (char= (char line pos) #\Space)) do (incf pos))
+          (when (< pos len)
+            (if (char= (char line pos) #\:)
+                ;; Trailing param (rest of line)
+                (progn
+                  (push (subseq line (1+ pos)) params)
+                  (setf pos len))
+                ;; Regular param
+                (let ((end (or (position #\Space line :start pos) len)))
+                  (push (subseq line pos end) params)
+                  (setf pos end)))))
+        
+        (make-irc-message :tags tags
+                          :prefix prefix
+                          :command command
+                          :params (nreverse params)))
+    ;; Catch parsing errors - return synthetic error message
+    (error (e)
+      (format *error-output* "~&[PARSE-ERROR] ~a~%  Line: ~s~%" e line)
+      (make-irc-message 
+       :command "ERROR"
+       :params (list (format nil "Parse error: ~a" e))
+       :prefix "clatter-internal"))))
 
 (defun parse-irc-tags (tags-string)
   "Parse IRCv3 tags string into an alist of (key . value) pairs.
@@ -145,6 +221,61 @@
              (second (parse-integer (subseq time-string 17 19))))
         (encode-universal-time second minute hour day month year 0))
     (error () nil)))
+
+;;; IRC line length limits (RFC 2812: 512 bytes including CRLF)
+
+(defparameter +irc-max-line-length+ 510
+  "Maximum IRC line length (512 - 2 for CRLF)")
+
+(defparameter +irc-safe-message-length+ 400
+  "Safe message length accounting for prefix/command overhead.
+   Worst case: :nick!~user@longest.hostname.example.com PRIVMSG #channel :")
+
+(defun message-overhead (command target)
+  "Calculate overhead bytes for a PRIVMSG/NOTICE.
+   Format: :nick!user@host COMMAND target :text"
+  (+ 1              ; leading :
+     30             ; nick (max typical)
+     1              ; !
+     10             ; user (~xxxxxxxx)
+     1              ; @
+     63             ; hostname (max)
+     1              ; space
+     (length command)
+     1              ; space
+     (length target)
+     2))            ; space :
+
+(defun max-message-length (command target)
+  "Calculate maximum safe message length for target."
+  (- +irc-max-line-length+ (message-overhead command target)))
+
+(defun split-long-message (target text &key (command "PRIVMSG"))
+  "Split TEXT into multiple messages if needed.
+   Returns list of message strings that fit within IRC limits."
+  (let* ((max-len (max-message-length command target))
+         (len (length text)))
+    (if (<= len max-len)
+        (list text)
+        ;; Split on word boundaries if possible
+        (let ((parts nil)
+              (start 0))
+          (loop while (< start len) do
+            (let* ((end (min (+ start max-len) len))
+                   (chunk (subseq text start end)))
+              ;; Try to break on space if not at end
+              (when (and (< end len)
+                        (not (char= (char text end) #\Space)))
+                (let ((space-pos (position #\Space chunk :from-end t)))
+                  (when (and space-pos (> space-pos 0))
+                    (setf end (+ start space-pos)
+                          chunk (subseq text start end)))))
+              (push chunk parts)
+              (setf start (if (and (< end len) 
+                                  (char= (char text end) #\Space))
+                             (1+ end)
+                             end))))
+          (nreverse parts)))))
 
 (defun format-irc-line (command &rest params)
   "Format an IRC command with params into a protocol line."
