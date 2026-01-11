@@ -419,9 +419,17 @@
           ((string= subcmd-up "CLOSE")
            (dcc-close-command app manager rest))
           
+          ;; /dcc ip [address] - show or set DCC IP
+          ((string= subcmd-up "IP")
+           (if (> (length rest) 0)
+               (progn
+                 (clatter.net.dcc:set-dcc-ip (string-trim " " rest))
+                 (dcc-show-usage app (format nil "DCC IP set to: ~a" (string-trim " " rest))))
+               (dcc-show-usage app (format nil "Current DCC IP: ~a" (clatter.net.dcc:get-local-ip)))))
+          
           ;; Unknown or no subcommand - show help
           (t
-           (dcc-show-usage app "Usage: /dcc [chat|send|list|accept|reject|close] ...")))))))
+           (dcc-show-usage app "Usage: /dcc [chat|send|list|accept|reject|close|ip] ...")))))))
 
 (defun dcc-show-usage (app text)
   "Show DCC usage message."

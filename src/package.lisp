@@ -277,7 +277,8 @@
    ;; Handling offers
    #:dcc-handle-offer
    ;; Utilities
-   #:ip-integer-to-string #:ip-string-to-integer))
+   #:ip-integer-to-string #:ip-string-to-integer
+   #:get-local-ip #:set-dcc-ip))
 
 (defpackage #:clatter.app
   (:use #:cl)

@@ -442,39 +442,41 @@
 
 (defun dcc-initiate-send (manager nick filepath)
   "Initiate a DCC SEND to nick."
-  (unless (probe-file filepath)
-    (dcc-log-system manager "File not found: ~a" filepath)
-    (return-from dcc-initiate-send nil))
-  (let* ((local-ip (get-local-ip))
-         (port (find-available-port))
-         (filename (file-namestring filepath))
-         (filesize (with-open-file (f filepath) (file-length f))))
-    (handler-case
-        (let* ((listener (usocket:socket-listen usocket:*wildcard-host* port :reuse-address t))
-               (conn (make-instance 'dcc-send
-                                    :nick nick
-                                    :direction :outgoing
-                                    :filename filename
-                                    :filepath filepath
-                                    :filesize filesize)))
-          (setf (dcc-socket conn) listener)
-          (dcc-manager-add manager conn)
-          ;; Send CTCP DCC SEND
-          (let* ((ip-int (ip-string-to-integer local-ip))
-                 (ctcp-msg (format nil "~CDCC SEND ~a ~a ~a ~a~C"
-                                   (code-char 1) filename ip-int port filesize (code-char 1))))
-            (clatter.net.irc:irc-send (dcc-irc-conn manager)
-                                      (clatter.core.protocol:irc-privmsg nick ctcp-msg)))
-          (dcc-log-system manager "DCC SEND ~a to ~a (~a bytes)" filename nick filesize)
-          ;; Start listener thread
-          (setf (dcc-thread conn)
-                (bt:make-thread
-                 (lambda () (dcc-send-listen conn manager listener))
-                 :name (format nil "dcc-send-listen-~a" filename)))
-          conn)
-      (error (e)
-        (dcc-log-system manager "Failed to initiate DCC SEND: ~a" e)
-        nil))))
+  (handler-case
+      (progn
+        (unless (probe-file filepath)
+          (dcc-log-system manager "File not found: ~a" filepath)
+          (return-from dcc-initiate-send nil))
+        (let* ((local-ip (get-local-ip))
+               (port (find-available-port))
+               (filename (file-namestring filepath))
+               (filesize (with-open-file (f filepath) (file-length f))))
+          (dcc-log-system manager "DCC SEND: IP=~a port=~a file=~a" local-ip port filename)
+          (let* ((listener (usocket:socket-listen usocket:*wildcard-host* port :reuse-address t))
+                 (conn (make-instance 'dcc-send
+                                      :nick nick
+                                      :direction :outgoing
+                                      :filename filename
+                                      :filepath filepath
+                                      :filesize filesize)))
+            (setf (dcc-socket conn) listener)
+            (dcc-manager-add manager conn)
+            ;; Send CTCP DCC SEND
+            (let* ((ip-int (ip-string-to-integer local-ip))
+                   (ctcp-msg (format nil "~CDCC SEND ~a ~a ~a ~a~C"
+                                     (code-char 1) filename ip-int port filesize (code-char 1))))
+              (clatter.net.irc:irc-send (dcc-irc-conn manager)
+                                        (clatter.core.protocol:irc-privmsg nick ctcp-msg)))
+            (dcc-log-system manager "DCC SEND ~a to ~a (~a bytes)" filename nick filesize)
+            ;; Start listener thread
+            (setf (dcc-thread conn)
+                  (bt:make-thread
+                   (lambda () (dcc-send-listen conn manager listener))
+                   :name (format nil "dcc-send-listen-~a" filename)))
+            conn)))
+    (error (e)
+      (dcc-log-system manager "Failed to initiate DCC SEND: ~a" e)
+      nil)))
 
 (defun dcc-send-listen (conn manager listener)
   "Wait for incoming connection on DCC SEND listener."
@@ -560,11 +562,16 @@
 
 (defun ip-string-to-integer (ip-str)
   "Convert dotted IP string to 32-bit integer."
-  (let ((parts (mapcar #'parse-integer (split-string ip-str #\.))))
-    (+ (ash (first parts) 24)
-       (ash (second parts) 16)
-       (ash (third parts) 8)
-       (fourth parts))))
+  (handler-case
+      (let ((parts (mapcar #'parse-integer (split-string ip-str #\.))))
+        (if (and (= (length parts) 4)
+                 (every #'integerp parts))
+            (+ (ash (first parts) 24)
+               (ash (second parts) 16)
+               (ash (third parts) 8)
+               (fourth parts))
+            0))
+    (error () 0)))
 
 (defvar *dcc-local-ip* nil
   "Cached local IP address for DCC. Set via /dcc ip or auto-detected.")
@@ -596,7 +603,7 @@
 
 (defun find-available-port ()
   "Find an available port for DCC listening."
-  (loop for port from *dcc-port-range-start* to *dcc-port-range-end*
+  (loop for port from clatter.core.constants:+dcc-port-range-start+ to clatter.core.constants:+dcc-port-range-end+
         do (handler-case
                (let ((socket (usocket:socket-listen usocket:*wildcard-host* port)))
                  (usocket:socket-close socket)

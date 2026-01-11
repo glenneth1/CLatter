@@ -588,7 +588,10 @@
          (irc-log-system conn "CTCP TIME from ~a" sender-nick)))
       ;; DCC - handle DCC offers
       ((string= ctcp-cmd "DCC")
+       (irc-log-system conn "CTCP DCC from ~a: ~a" sender-nick ctcp-args)
        (let ((manager clatter.net.dcc:*dcc-manager*))
+         (unless manager
+           (irc-log-system conn "DCC manager not initialized - ignoring offer"))
          (when manager
            ;; Parse DCC type and args: "CHAT chat ip port" or "SEND file ip port size"
            (let* ((space-pos2 (position #\Space ctcp-args))
