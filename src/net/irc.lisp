@@ -342,16 +342,11 @@
               (server-time (clatter.core.protocol:get-server-time tags))
               (parsed-tags (clatter.core.protocol:parse-irc-tags tags))
               (batch-id (cdr (assoc "batch" parsed-tags :test #'string=))))
-         ;; Debug: log all private messages to us (not channels)
-         (when (and (not (char= (char target 0) #\#))
-                    (string-equal target (irc-nick conn)))
-           (irc-log-system conn "PM from ~a: ~a" sender-nick raw-text))
          ;; Check for CTCP (starts and ends with \x01)
          (cond
            ((and (> (length raw-text) 1)
                  (char= (char raw-text 0) (code-char 1))
                  (char= (char raw-text (1- (length raw-text))) (code-char 1)))
-            (irc-log-system conn "CTCP received from ~a: ~a" sender-nick (subseq raw-text 1 (1- (length raw-text))))
             (irc-handle-ctcp conn sender-nick target raw-text))
            ;; If part of a batch, accumulate instead of delivering
            (batch-id
@@ -593,10 +588,7 @@
          (irc-log-system conn "CTCP TIME from ~a" sender-nick)))
       ;; DCC - handle DCC offers
       ((string= ctcp-cmd "DCC")
-       (irc-log-system conn "CTCP DCC from ~a: ~a" sender-nick ctcp-args)
        (let ((manager clatter.net.dcc:*dcc-manager*))
-         (unless manager
-           (irc-log-system conn "DCC manager not initialized - ignoring offer"))
          (when manager
            ;; Parse DCC type and args: "CHAT chat ip port" or "SEND file ip port size"
            (let* ((space-pos2 (position #\Space ctcp-args))

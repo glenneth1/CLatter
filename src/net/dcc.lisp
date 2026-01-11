@@ -451,7 +451,6 @@
                (port (find-available-port))
                (filename (file-namestring filepath))
                (filesize (with-open-file (f filepath) (file-length f))))
-          (dcc-log-system manager "DCC SEND: IP=~a port=~a file=~a" local-ip port filename)
           (let* ((listener (usocket:socket-listen usocket:*wildcard-host* port :reuse-address t))
                  (conn (make-instance 'dcc-send
                                       :nick nick
@@ -467,10 +466,8 @@
                                      (code-char 1) filename ip-int port filesize (code-char 1)))
                    (full-msg (clatter.core.protocol:irc-privmsg nick ctcp-msg))
                    (send-conn (or irc-conn (dcc-irc-conn manager))))
-              (dcc-log-system manager "Sending raw: ~a" full-msg)
-              (if send-conn
-                  (clatter.net.irc:irc-send send-conn full-msg)
-                  (dcc-log-system manager "ERROR: No IRC connection available!")))
+              (when send-conn
+                (clatter.net.irc:irc-send send-conn full-msg)))
             (dcc-log-system manager "DCC SEND ~a to ~a (~a bytes)" filename nick filesize)
             ;; Start listener thread
             (setf (dcc-thread conn)
