@@ -342,6 +342,10 @@
               (server-time (clatter.core.protocol:get-server-time tags))
               (parsed-tags (clatter.core.protocol:parse-irc-tags tags))
               (batch-id (cdr (assoc "batch" parsed-tags :test #'string=))))
+         ;; Debug: log all private messages to us (not channels)
+         (when (and (not (char= (char target 0) #\#))
+                    (string-equal target (irc-nick conn)))
+           (irc-log-system conn "PM from ~a: ~a" sender-nick raw-text))
          ;; Check for CTCP (starts and ends with \x01)
          (cond
            ((and (> (length raw-text) 1)
