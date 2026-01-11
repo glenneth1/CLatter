@@ -19,7 +19,7 @@
   ((id              :initarg :id :accessor buffer-id)
    (title           :initarg :title :accessor buffer-title)
    (network         :initarg :network :initform nil :accessor buffer-network)
-   (scrollback      :initform (make-ring :capacity 4000) :reader buffer-scrollback)
+   (scrollback      :initform (make-ring :capacity clatter.core.constants:+default-scrollback-capacity+) :reader buffer-scrollback)
    (unread-count    :initform 0 :accessor buffer-unread-count)
    (highlight-count :initform 0 :accessor buffer-highlight-count)
    (scroll-offset   :initform 0 :accessor buffer-scroll-offset)
@@ -143,8 +143,8 @@
    (win-input   :initform nil :accessor ui-win-input)
    (term-w      :initform 0 :accessor ui-term-w)
    (term-h      :initform 0 :accessor ui-term-h)
-   (buflist-w   :initform 28 :accessor ui-buflist-w)
-   (nicklist-w  :initform 20 :accessor ui-nicklist-w)  ;; nick list width
+   (buflist-w   :initform clatter.core.constants:+default-buflist-width+ :accessor ui-buflist-w)
+   (nicklist-w  :initform clatter.core.constants:+default-nicklist-width+ :accessor ui-nicklist-w)  ;; nick list width
    (nicklist-visible :initform nil :accessor ui-nicklist-visible)  ;; toggle state
    (input       :initform (make-input-state) :accessor ui-input)
    ;; Split pane state
@@ -391,8 +391,7 @@
 ;;;; URL Detection and Tracking
 ;;;; ============================================================
 
-(defparameter +max-recent-urls+ 50
-  "Maximum number of URLs to track per buffer.")
+;; Use constant from clatter.core.constants:+max-recent-urls+
 
 (defun extract-urls (text)
   "Extract all URLs from TEXT. Returns list of URL strings."
@@ -433,7 +432,7 @@
       (when urls
         (setf (buffer-recent-urls buf)
               (subseq (append urls (buffer-recent-urls buf))
-                      0 (min +max-recent-urls+ 
+                      0 (min clatter.core.constants:+max-recent-urls+ 
                              (+ (length urls) (length (buffer-recent-urls buf))))))))))
 
 (defun open-url (url)

@@ -2,7 +2,7 @@
 
 ;; Track last typing notification time to avoid spamming
 (defvar *last-typing-sent* 0)
-(defparameter *typing-throttle* 3)  ; seconds between typing notifications
+;; Typing throttle uses clatter.core.constants:+typing-throttle-seconds+
 
 (defun input-set-text (app new-text &optional (cursor (length new-text)))
   (setf (input-text (ui-input (app-ui app))) new-text)
@@ -17,7 +17,7 @@
   "Send typing notification if enough time has passed since last one."
   (let ((now (get-universal-time))
         (conn (clatter.core.model:get-current-connection app)))
-    (when (and conn (> (- now *last-typing-sent*) *typing-throttle*))
+    (when (and conn (> (- now *last-typing-sent*) clatter.core.constants:+typing-throttle-seconds+))
       (let ((buf (clatter.core.model:active-buffer app)))
         (when (and buf (not (eq (clatter.core.model:buffer-kind buf) :server)))
           (setf *last-typing-sent* now)

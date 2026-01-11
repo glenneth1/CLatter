@@ -24,7 +24,7 @@
   ((networks :initarg :networks :accessor config-networks :initform nil)
    (default-network :initarg :default-network :accessor config-default-network :initform nil)
    (time-format :initarg :time-format :accessor config-time-format :initform "%H:%M")
-   (buflist-width :initarg :buflist-width :accessor config-buflist-width :initform 28)))
+   (buflist-width :initarg :buflist-width :accessor config-buflist-width :initform clatter.core.constants:+default-buflist-width+)))
 
 (defun make-network-config (&rest args)
   (apply #'make-instance 'network-config args))

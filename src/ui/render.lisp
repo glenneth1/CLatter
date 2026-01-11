@@ -2,7 +2,7 @@
 
 ;; Health check timing
 (defvar *last-health-check* 0 "Universal time of last connection health check")
-(defparameter *health-check-interval* 30 "Seconds between health checks")
+;; Health check interval uses clatter.core.constants:+health-check-interval+
 
 ;; Nick color - now uses theme system
 (defun nick-color (nick)
@@ -181,7 +181,7 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
 (defun maybe-check-connection-health (app)
   "Periodically check all connection health (called from render loop)."
   (let ((now (get-universal-time)))
-    (when (> (- now *last-health-check*) *health-check-interval*)
+    (when (> (- now *last-health-check*) clatter.core.constants:+health-check-interval+)
       (setf *last-health-check* now)
       ;; Check health of all connections
       (maphash (lambda (name conn)

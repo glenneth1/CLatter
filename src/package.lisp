@@ -2,6 +2,32 @@
   (:use #:cl)
   (:export #:main))
 
+(defpackage #:clatter.core.constants
+  (:use #:cl)
+  (:export
+   ;; Buffer & UI
+   #:+default-scrollback-capacity+ #:+default-buflist-width+ #:+default-nicklist-width+
+   #:+max-recent-urls+
+   ;; Connection & Timing
+   #:+health-check-interval+ #:+typing-throttle-seconds+
+   #:+ping-timeout-seconds+ #:+pong-timeout-seconds+
+   #:+reconnect-min-delay+ #:+reconnect-max-delay+
+   ;; IRC Protocol
+   #:+irc-max-line-length+ #:+irc-safe-message-length+ #:+irc-max-channel-length+
+   ;; DCC
+   #:+dcc-port-range-start+ #:+dcc-port-range-end+ #:+dcc-timeout-seconds+ #:+dcc-buffer-size+
+   ;; IRC Numerics
+   #:+rpl-welcome+ #:+rpl-yourhost+ #:+rpl-created+ #:+rpl-myinfo+ #:+rpl-isupport+
+   #:+rpl-namreply+ #:+rpl-endofnames+ #:+rpl-topic+ #:+rpl-topicwhotime+
+   #:+rpl-motd+ #:+rpl-motdstart+ #:+rpl-endofmotd+
+   #:+rpl-whoisuser+ #:+rpl-whoisserver+ #:+rpl-whoisoperator+ #:+rpl-whoisidle+
+   #:+rpl-endofwhois+ #:+rpl-whoischannels+ #:+rpl-whoisaccount+
+   #:+err-nicknameinuse+
+   ;; External Services
+   #:+crafterbin-url+
+   ;; IRCv3
+   #:+wanted-capabilities+))
+
 (defpackage #:clatter.core.ring
   (:use #:cl)
   (:export #:make-ring #:ring-push #:ring->list #:ring-count))
