@@ -156,7 +156,12 @@
                 #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
                 #:ui-nicklist-w #:ui-nicklist-visible)
   (:import-from #:clatter.core.ring #:ring->list)
-  (:export #:render-frame))
+  (:export #:render-frame
+           ;; Theme system
+           #:*current-theme* #:current-theme #:set-theme
+           #:find-theme #:list-themes #:register-theme
+           #:base-theme #:dark-theme #:light-theme #:solarized-dark-theme
+           #:minimal-theme #:ascii-theme #:rounded-theme))
 
 (defpackage #:clatter.ui.keymap
   (:use #:cl)

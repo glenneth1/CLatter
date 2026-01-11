@@ -701,6 +701,36 @@
   t)
 
 ;;;; ============================================================
+;;;; Theme Command
+;;;; ============================================================
+
+(defclass theme-command (irc-command)
+  ()
+  (:default-initargs
+   :name "THEME"
+   :help "/theme [name] - List themes or switch to named theme (dark, light, solarized, minimal, ascii, rounded)"
+   :min-args 0))
+
+(defmethod execute-cmd ((command theme-command) app conn args)
+  (declare (ignore conn))
+  (if (or (null args) (zerop (length args)))
+      ;; List available themes
+      (let ((themes (clatter.ui.render:list-themes)))
+        (cmd-message app (format nil "Available themes: ~{~a~^, ~}" 
+                                (mapcar #'string-downcase themes)))
+        (cmd-message app (format nil "Current theme: ~a" 
+                                (type-of (clatter.ui.render:current-theme)))))
+      ;; Switch theme
+      (let ((theme-class (clatter.ui.render:find-theme args)))
+        (if theme-class
+            (progn
+              (clatter.ui.render:set-theme theme-class)
+              (clatter.core.model:mark-dirty app :layout :chat :buflist :status :input)
+              (cmd-message app (format nil "Theme switched to: ~a" args)))
+            (cmd-error app (format nil "Unknown theme: ~a. Use /theme to list available themes." args)))))
+  t)
+
+;;;; ============================================================
 ;;;; Command Registration
 ;;;; ============================================================
 
@@ -740,7 +770,8 @@
   (register-command 'members-command)
   (register-command 'list-command)
   (register-command 'who-command)
-  (register-command 'monitor-command))
+  (register-command 'monitor-command)
+  (register-command 'theme-command))
 
 ;; Register commands when file loads
 (register-all-commands)
