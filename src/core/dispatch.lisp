@@ -19,6 +19,8 @@
   (ring-push (buffer-scrollback buf) msg)
   ;; Log the message to disk
   (clatter.core.logging:log-message buf msg)
+  ;; Extract and track URLs from message text
+  (buffer-add-urls buf (clatter.core.model:message-text msg))
   ;; Only increment unread if buffer is not visible in either pane
   (unless (buffer-visible-p app buf)
     (incf (buffer-unread-count buf))

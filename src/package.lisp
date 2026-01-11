@@ -17,7 +17,8 @@
    #:buffer-dcc-connection
    #:create-server-buffer
    #:buffer-unread-count #:buffer-highlight-count #:buffer-scroll-offset #:buffer-members #:buffer-typing-users #:get-typing-nicks
-   #:buffer-filter-pattern #:buffer-filter-active
+   #:buffer-filter-pattern #:buffer-filter-active #:buffer-recent-urls
+   #:extract-urls #:buffer-add-urls #:open-url #:+max-recent-urls+
    #:buffer-channel-modes #:buffer-my-modes
    #:ui-win-chat2 #:ui-win-nicklist #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
    #:ui-nicklist-w #:ui-nicklist-visible
@@ -127,7 +128,7 @@
                 #:app #:app-ui #:app-current-buffer-id #:buffer #:buffer-id #:message
                 #:mark-dirty #:current-buffer #:find-buffer
                 #:buffer-scrollback #:buffer-unread-count #:buffer-highlight-count
-                #:buffer-scroll-offset
+                #:buffer-scroll-offset #:buffer-add-urls
                 #:ui-split-mode #:ui-split-buffer-id)
   (:import-from #:clatter.core.ring #:ring-push)
   (:export #:apply-event #:deliver-message))

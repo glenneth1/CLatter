@@ -733,6 +733,45 @@
   t)
 
 ;;;; ============================================================
+;;;; URL Command
+;;;; ============================================================
+
+(defclass url-command (irc-command)
+  ()
+  (:default-initargs
+   :name "URL"
+   :help "/url [N|list] - Open Nth recent URL (default 1) or list recent URLs"
+   :min-args 0))
+
+(defmethod execute-cmd ((command url-command) app conn args)
+  (declare (ignore conn))
+  (let* ((buf (clatter.core.model:current-buffer app))
+         (urls (when buf (clatter.core.model:buffer-recent-urls buf))))
+    (cond
+      ((null urls)
+       (cmd-message app "No URLs found in this buffer"))
+      ;; /url list - show recent URLs
+      ((and args (string-equal (string-trim " " args) "list"))
+       (cmd-message app "Recent URLs:")
+       (loop for url in urls
+             for i from 1 to (min 10 (length urls))
+             do (cmd-message app (format nil "  ~d. ~a" i url))))
+      ;; /url N - open Nth URL
+      ((and args (> (length args) 0))
+       (let ((n (parse-integer args :junk-allowed t)))
+         (if (and n (> n 0) (<= n (length urls)))
+             (let ((url (nth (1- n) urls)))
+               (cmd-message app (format nil "Opening: ~a" url))
+               (clatter.core.model:open-url url))
+             (cmd-error app (format nil "Invalid URL number. Use 1-~d or 'list'" (length urls))))))
+      ;; /url - open most recent
+      (t
+       (let ((url (first urls)))
+         (cmd-message app (format nil "Opening: ~a" url))
+         (clatter.core.model:open-url url)))))
+  t)
+
+;;;; ============================================================
 ;;;; Search and Filter Commands
 ;;;; ============================================================
 
@@ -882,7 +921,8 @@
   (register-command 'theme-command)
   (register-command 'search-command)
   (register-command 'filter-command)
-  (register-command 'unfilter-command))
+  (register-command 'unfilter-command)
+  (register-command 'url-command))
 
 ;; Register commands when file loads
 (register-all-commands)

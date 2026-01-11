@@ -25,7 +25,9 @@
    (scroll-offset   :initform 0 :accessor buffer-scroll-offset)
    ;; Filter support for /search and /filter commands
    (filter-pattern  :initform nil :accessor buffer-filter-pattern)
-   (filter-active   :initform nil :accessor buffer-filter-active))
+   (filter-active   :initform nil :accessor buffer-filter-active)
+   ;; URL tracking for /url command
+   (recent-urls     :initform nil :accessor buffer-recent-urls))
   (:documentation "Base class for all IRC buffers."))
 
 ;;; Server buffer - for server messages, no members or typing
@@ -384,3 +386,65 @@
   "Return a list of all non-nil buffers in the app."
   (loop for buf across (app-buffers app)
         when buf collect buf))
+
+;;;; ============================================================
+;;;; URL Detection and Tracking
+;;;; ============================================================
+
+(defparameter +max-recent-urls+ 50
+  "Maximum number of URLs to track per buffer.")
+
+(defun extract-urls (text)
+  "Extract all URLs from TEXT. Returns list of URL strings."
+  (when text
+    (let ((urls nil)
+          (pos 0)
+          (len (length text)))
+      (loop while (< pos len) do
+        ;; Find http:// or https://
+        (let ((http-pos (search "http://" text :start2 pos :test #'char-equal))
+              (https-pos (search "https://" text :start2 pos :test #'char-equal)))
+          (let ((start (cond
+                         ((and http-pos https-pos) (min http-pos https-pos))
+                         (http-pos http-pos)
+                         (https-pos https-pos)
+                         (t nil))))
+            (if start
+                (let ((end start))
+                  ;; Find end of URL (space, <, >, or end of string)
+                  (loop while (and (< end len)
+                                  (not (member (char text end) 
+                                              '(#\Space #\Tab #\Newline #\< #\> #\" #\) #\]))))
+                        do (incf end))
+                  ;; Strip trailing punctuation
+                  (loop while (and (> end start)
+                                  (member (char text (1- end)) '(#\. #\, #\; #\: #\! #\?)))
+                        do (decf end))
+                  (when (> end start)
+                    (push (subseq text start end) urls))
+                  (setf pos end))
+                (setf pos len)))))
+      (nreverse urls))))
+
+(defun buffer-add-urls (buf text)
+  "Extract URLs from TEXT and add them to buffer's recent-urls list."
+  (when (and buf text)
+    (let ((urls (extract-urls text)))
+      (when urls
+        (setf (buffer-recent-urls buf)
+              (subseq (append urls (buffer-recent-urls buf))
+                      0 (min +max-recent-urls+ 
+                             (+ (length urls) (length (buffer-recent-urls buf))))))))))
+
+(defun open-url (url)
+  "Open URL in the default browser."
+  (handler-case
+      (progn
+        #+linux
+        (uiop:run-program (list "xdg-open" url) :ignore-error-status t)
+        #+darwin
+        (uiop:run-program (list "open" url) :ignore-error-status t)
+        #+windows
+        (uiop:run-program (list "cmd" "/c" "start" url) :ignore-error-status t)
+        t)
+    (error () nil)))

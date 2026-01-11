@@ -38,6 +38,7 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 - *Theming* - Multiple built-in themes (dark, light, solarized, minimal, ascii, rounded) with ~/theme~
 - *Message Search* - Search buffer history with ~/search~
 - *Message Filtering* - Filter displayed messages with ~/filter~
+- *URL Detection* - Automatically tracks URLs in chat, open with ~/url~
 
 ** Requirements
 
@@ -282,6 +283,7 @@ Or with authinfo/plain text:
 | ~/search pattern~            | Search current buffer for messages       |
 | ~/filter pattern~            | Show only messages matching pattern      |
 | ~/unfilter~                  | Clear message filter                     |
+| ~/url [N\vert{}list]~        | Open Nth recent URL or list URLs         |
 | ~/help~                      | Show help                                |
 
 ** Keybindings
