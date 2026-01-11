@@ -701,6 +701,82 @@
   t)
 
 ;;;; ============================================================
+;;;; Search and Filter Commands
+;;;; ============================================================
+
+(defclass search-command (irc-command)
+  ()
+  (:default-initargs
+   :name "SEARCH"
+   :help "/search <pattern> - Search current buffer for messages matching pattern"
+   :min-args 1))
+
+(defmethod execute-cmd ((command search-command) app conn args)
+  (declare (ignore conn))
+  (let* ((buf (clatter.core.model:current-buffer app))
+         (pattern args)
+         (messages (clatter.core.ring:ring->list (clatter.core.model:buffer-scrollback buf)))
+         (matches nil)
+         (count 0))
+    ;; Search messages
+    (dolist (msg messages)
+      (when (search pattern (clatter.core.model:message-text msg) :test #'char-equal)
+        (push msg matches)
+        (incf count)))
+    ;; Display results
+    (if (zerop count)
+        (cmd-message app (format nil "No matches found for '~a'" pattern))
+        (progn
+          (cmd-message app (format nil "Found ~d matches for '~a':" count pattern))
+          ;; Show up to 10 most recent matches
+          (loop for msg in (subseq (reverse matches) 0 (min 10 count))
+                do (cmd-message app 
+                     (format nil "  [~a] <~a> ~a"
+                             (format-timestamp (clatter.core.model:message-ts msg))
+                             (or (clatter.core.model:message-nick msg) "*")
+                             (clatter.core.model:message-text msg))
+                     :level :search))
+          (when (> count 10)
+            (cmd-message app (format nil "  ... and ~d more matches" (- count 10)))))))
+  t)
+
+(defclass filter-command (irc-command)
+  ()
+  (:default-initargs
+   :name "FILTER"
+   :help "/filter <pattern> - Show only messages matching pattern (use /unfilter to clear)"
+   :min-args 1))
+
+(defmethod execute-cmd ((command filter-command) app conn args)
+  (declare (ignore conn))
+  (let ((buf (clatter.core.model:current-buffer app)))
+    (setf (clatter.core.model:buffer-filter-pattern buf) args
+          (clatter.core.model:buffer-filter-active buf) t)
+    (cmd-message app (format nil "Filter active: ~a (use /unfilter to clear)" args))
+    (clatter.core.model:mark-dirty app :chat))
+  t)
+
+(defclass unfilter-command (irc-command)
+  ()
+  (:default-initargs
+   :name "UNFILTER"
+   :aliases '("CLEARFILTER")
+   :help "/unfilter - Clear message filter"
+   :min-args 0))
+
+(defmethod execute-cmd ((command unfilter-command) app conn args)
+  (declare (ignore conn args))
+  (let ((buf (clatter.core.model:current-buffer app)))
+    (if (clatter.core.model:buffer-filter-active buf)
+        (progn
+          (setf (clatter.core.model:buffer-filter-active buf) nil
+                (clatter.core.model:buffer-filter-pattern buf) nil)
+          (cmd-message app "Filter cleared")
+          (clatter.core.model:mark-dirty app :chat))
+        (cmd-message app "No filter active")))
+  t)
+
+;;;; ============================================================
 ;;;; Theme Command
 ;;;; ============================================================
 
@@ -771,7 +847,10 @@
   (register-command 'list-command)
   (register-command 'who-command)
   (register-command 'monitor-command)
-  (register-command 'theme-command))
+  (register-command 'theme-command)
+  (register-command 'search-command)
+  (register-command 'filter-command)
+  (register-command 'unfilter-command))
 
 ;; Register commands when file loads
 (register-all-commands)

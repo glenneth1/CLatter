@@ -17,6 +17,7 @@
    #:buffer-dcc-connection
    #:create-server-buffer
    #:buffer-unread-count #:buffer-highlight-count #:buffer-scroll-offset #:buffer-members #:buffer-typing-users #:get-typing-nicks
+   #:buffer-filter-pattern #:buffer-filter-active
    #:buffer-channel-modes #:buffer-my-modes
    #:ui-win-chat2 #:ui-win-nicklist #:ui-split-mode #:ui-split-buffer-id #:ui-active-pane
    #:ui-nicklist-w #:ui-nicklist-visible
@@ -149,6 +150,7 @@
                 #:app #:app-ui #:app-buffers #:app-current-buffer-id #:app-buffer-order #:app-connections
                 #:buffer #:buffer-title #:buffer-kind #:buffer-network #:buffer-unread-count #:buffer-highlight-count
                 #:buffer-channel-modes #:buffer-my-modes #:buffer-members
+                #:buffer-filter-pattern #:buffer-filter-active
                 #:current-buffer #:buffer-scrollback #:buffer-scroll-offset
                 #:input-text #:input-cursor
                 #:dirty-p #:clear-dirty

@@ -35,6 +35,9 @@ A terminal-based IRC client written in Common Lisp using the [[https://codeberg.
 - *Ignore List* - Hide messages from specific users with ~/ignore~
 - *Away Status* - Set away status with ~/away~
 - *Secure Password Storage* - Support for authinfo.gpg, systemd-creds, and pass(1)
+- *Theming* - Multiple built-in themes (dark, light, solarized, minimal, ascii, rounded) with ~/theme~
+- *Message Search* - Search buffer history with ~/search~
+- *Message Filtering* - Filter displayed messages with ~/filter~
 
 ** Requirements
 
@@ -275,6 +278,10 @@ Or with authinfo/plain text:
 | ~/list [pattern]~            | List channels on server                  |
 | ~/who target~                | Query user/channel info                  |
 | ~/raw line~                  | Send raw IRC command                     |
+| ~/theme [name]~              | List themes or switch theme              |
+| ~/search pattern~            | Search current buffer for messages       |
+| ~/filter pattern~            | Show only messages matching pattern      |
+| ~/unfilter~                  | Clear message filter                     |
 | ~/help~                      | Show help                                |
 
 ** Keybindings

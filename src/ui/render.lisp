@@ -96,7 +96,15 @@ Supported tokens: %H (24h hour), %I (12h hour), %M (minute), %S (second), %p (AM
 
 (defun render-chat-pane (win buf)
   "Render a buffer's messages into a chat window pane."
-  (let* ((msgs (ring->list (buffer-scrollback buf)))
+  (let* ((all-msgs (ring->list (buffer-scrollback buf)))
+         ;; Apply filter if active
+         (msgs (if (clatter.core.model:buffer-filter-active buf)
+                   (let ((pattern (clatter.core.model:buffer-filter-pattern buf)))
+                     (remove-if-not 
+                      (lambda (m)
+                        (search pattern (clatter.core.model:message-text m) :test #'char-equal))
+                      all-msgs))
+                   all-msgs))
          (h (de.anvi.croatoan:height win))
          (w (de.anvi.croatoan:width win))
          (content-h (- h 2))

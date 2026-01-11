@@ -22,7 +22,10 @@
    (scrollback      :initform (make-ring :capacity 4000) :reader buffer-scrollback)
    (unread-count    :initform 0 :accessor buffer-unread-count)
    (highlight-count :initform 0 :accessor buffer-highlight-count)
-   (scroll-offset   :initform 0 :accessor buffer-scroll-offset))
+   (scroll-offset   :initform 0 :accessor buffer-scroll-offset)
+   ;; Filter support for /search and /filter commands
+   (filter-pattern  :initform nil :accessor buffer-filter-pattern)
+   (filter-active   :initform nil :accessor buffer-filter-active))
   (:documentation "Base class for all IRC buffers."))
 
 ;;; Server buffer - for server messages, no members or typing
