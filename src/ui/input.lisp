@@ -116,34 +116,75 @@
         (clatter.core.commands:handle-input-line app conn line)))
     (input-set-text app "" 0)))
 
+(defun get-command-completions (prefix)
+  "Get list of commands matching PREFIX (without leading /)."
+  (let ((matches nil))
+    (maphash (lambda (name class-sym)
+               (declare (ignore class-sym))
+               (when (and (>= (length name) (length prefix))
+                          (string-equal prefix (subseq name 0 (length prefix))))
+                 (push (string-downcase name) matches)))
+             clatter.core.commands::*command-registry*)
+    (sort (remove-duplicates matches :test #'string-equal) #'string-lessp)))
+
+(defun get-channel-completions (app prefix)
+  "Get list of channels matching PREFIX from current buffers."
+  (let ((matches nil))
+    (loop for buf across (clatter.core.model:app-buffers app)
+          when (and buf 
+                    (eq (clatter.core.model:buffer-kind buf) :channel)
+                    (let ((title (clatter.core.model:buffer-title buf)))
+                      (and (>= (length title) (length prefix))
+                           (string-equal prefix (subseq title 0 (length prefix))))))
+          do (push (clatter.core.model:buffer-title buf) matches))
+    (sort matches #'string-lessp)))
+
+(defun get-nick-completions (buf prefix)
+  "Get list of nicks matching PREFIX from buffer members."
+  (let ((matches nil)
+        (members (when buf (clatter.core.model:buffer-members buf))))
+    (when members
+      (maphash (lambda (nick val)
+                 (declare (ignore val))
+                 (when (and (>= (length nick) (length prefix))
+                            (string-equal prefix (subseq nick 0 (length prefix))))
+                   (push nick matches)))
+               members))
+    (sort matches #'string-lessp)))
+
 (defun input-tab-complete (app)
-  "Tab-complete nick at cursor position."
+  "Tab-complete at cursor position.
+   Completes: commands (after /), channels (after # or in /join), nicks."
   (let* ((st (%istate app))
          (text (input-text st))
          (cursor (input-cursor st))
-         (buf (current-buffer app))
-         (members (when buf (clatter.core.model:buffer-members buf))))
-    (unless members (return-from input-tab-complete nil))
+         (buf (current-buffer app)))
     ;; Find word start (go back to space or start of line)
-    (let* ((word-start (or (position #\Space text :end cursor :from-end t)
-                           -1))
+    (let* ((word-start (or (position #\Space text :end cursor :from-end t) -1))
            (word-start (1+ word-start))
            (prefix (subseq text word-start cursor)))
       (when (> (length prefix) 0)
-        ;; Find matching nicks
-        (let ((matches nil))
-          (maphash (lambda (nick val)
-                     (declare (ignore val))
-                     (when (and (>= (length nick) (length prefix))
-                                (string-equal prefix (subseq nick 0 (length prefix))))
-                       (push nick matches)))
-                   members)
+        (let ((matches nil)
+              (suffix " "))
+          ;; Determine completion type
+          (cond
+            ;; Command completion: starts with / at beginning of line
+            ((and (= word-start 0) (char= (char prefix 0) #\/))
+             (let ((cmd-prefix (subseq prefix 1)))
+               (setf matches (mapcar (lambda (m) (concatenate 'string "/" m))
+                                     (get-command-completions cmd-prefix)))))
+            ;; Channel completion: starts with #
+            ((char= (char prefix 0) #\#)
+             (setf matches (get-channel-completions app prefix)))
+            ;; Nick completion (default)
+            (t
+             (setf matches (get-nick-completions buf prefix))
+             ;; Add ": " suffix if at start of line (addressing someone)
+             (when (= word-start 0)
+               (setf suffix ": "))))
+          ;; Apply first match
           (when matches
-            ;; Sort and take first match
-            (setf matches (sort matches #'string-lessp))
             (let* ((completion (first matches))
-                   ;; Add ": " if at start of line, " " otherwise
-                   (suffix (if (= word-start 0) ": " " "))
                    (new-text (concatenate 'string
                                           (subseq text 0 word-start)
                                           completion
