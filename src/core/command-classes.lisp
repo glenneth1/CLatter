@@ -848,6 +848,75 @@
   t)
 
 ;;;; ============================================================
+;;;; Debug Command
+;;;; ============================================================
+
+(defclass debug-command (irc-command)
+  ()
+  (:default-initargs
+   :name "DEBUG"
+   :help "/debug [level|status|file|cat] - Control debug logging"
+   :min-args 0))
+
+(defmethod execute-cmd ((command debug-command) app conn args)
+  (declare (ignore conn))
+  (let* ((parts (when args (cl-ppcre:split "\\s+" (string-trim " " args))))
+         (subcmd (string-upcase (or (first parts) "STATUS")))
+         (arg (second parts)))
+    (cond
+      ;; /debug status - show current status
+      ((string= subcmd "STATUS")
+       (cmd-message app (clatter.core.debug:debug-status)))
+      ;; /debug 0-5 or off/error/warn/info/debug/trace - set level
+      ((or (every #'digit-char-p subcmd)
+           (member subcmd '("OFF" "ERROR" "WARN" "INFO" "DEBUG" "TRACE") :test #'string=))
+       (clatter.core.debug:set-debug-level 
+        (cond
+          ((string= subcmd "OFF") 0)
+          ((string= subcmd "ERROR") 1)
+          ((string= subcmd "WARN") 2)
+          ((string= subcmd "INFO") 3)
+          ((string= subcmd "DEBUG") 4)
+          ((string= subcmd "TRACE") 5)
+          (t (parse-integer subcmd))))
+       (cmd-message app (format nil "Debug level set to ~d (~a)" 
+                                clatter.core.debug:*debug-level*
+                                (clatter.core.debug:level-name clatter.core.debug:*debug-level*))))
+      ;; /debug file <path> - log to file
+      ((string= subcmd "FILE")
+       (if arg
+           (progn
+             (clatter.core.debug:open-debug-file arg)
+             (cmd-message app (format nil "Debug logging to: ~a" arg)))
+           (progn
+             (clatter.core.debug:close-debug-file)
+             (cmd-message app "Debug file logging disabled"))))
+      ;; /debug cat <category> - toggle category
+      ((string= subcmd "CAT")
+       (if arg
+           (if (clatter.core.debug:debug-category-enabled-p arg)
+               (progn
+                 (clatter.core.debug:disable-debug-category arg)
+                 (cmd-message app (format nil "Category '~a' disabled" arg)))
+               (progn
+                 (clatter.core.debug:enable-debug-category arg)
+                 (cmd-message app (format nil "Category '~a' enabled" arg))))
+           (let ((cats (clatter.core.debug:list-debug-categories)))
+             (if cats
+                 (cmd-message app (format nil "Enabled categories: ~{~a~^, ~}" cats))
+                 (cmd-message app "All categories enabled (no filter)")))))
+      ;; /debug clear - clear category filters
+      ((string= subcmd "CLEAR")
+       (clatter.core.debug:clear-debug-categories)
+       (cmd-message app "Category filters cleared"))
+      (t
+       (cmd-message app "Usage: /debug [0-5|off|error|warn|info|debug|trace]")
+       (cmd-message app "       /debug status - show current settings")
+       (cmd-message app "       /debug file <path> - log to file")
+       (cmd-message app "       /debug cat [category] - toggle/list categories"))))
+  t)
+
+;;;; ============================================================
 ;;;; Theme Command
 ;;;; ============================================================
 
@@ -919,6 +988,7 @@
   (register-command 'who-command)
   (register-command 'monitor-command)
   (register-command 'theme-command)
+  (register-command 'debug-command)
   (register-command 'search-command)
   (register-command 'filter-command)
   (register-command 'unfilter-command)

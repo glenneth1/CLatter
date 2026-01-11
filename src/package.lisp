@@ -28,6 +28,25 @@
    ;; IRCv3
    #:+wanted-capabilities+))
 
+(defpackage #:clatter.core.debug
+  (:use #:cl)
+  (:export
+   ;; Level constants
+   #:+level-off+ #:+level-error+ #:+level-warn+ #:+level-info+ #:+level-debug+ #:+level-trace+
+   ;; State
+   #:*debug-level* #:level-name
+   ;; Configuration
+   #:set-debug-level #:debug-status
+   ;; Category management
+   #:enable-debug-category #:disable-debug-category #:debug-category-enabled-p 
+   #:list-debug-categories #:clear-debug-categories
+   ;; File logging
+   #:open-debug-file #:close-debug-file
+   ;; Core logging
+   #:debug-log #:log-error #:log-warn #:log-info #:log-debug #:log-trace
+   ;; Protocol logging
+   #:log-irc-raw #:log-irc-event))
+
 (defpackage #:clatter.core.ring
   (:use #:cl)
   (:export #:make-ring #:ring-push #:ring->list #:ring-count))
