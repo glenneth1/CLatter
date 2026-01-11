@@ -440,8 +440,8 @@
             (dcc-error-message conn) (format nil "~a" e))
       (dcc-log-system manager "DCC CHAT listen failed: ~a" e))))
 
-(defun dcc-initiate-send (manager nick filepath)
-  "Initiate a DCC SEND to nick."
+(defun dcc-initiate-send (manager nick filepath &optional irc-conn)
+  "Initiate a DCC SEND to nick. If irc-conn is provided, use it instead of manager's connection."
   (handler-case
       (progn
         (unless (probe-file filepath)
@@ -461,16 +461,16 @@
                                       :filesize filesize)))
             (setf (dcc-socket conn) listener)
             (dcc-manager-add manager conn)
-            ;; Send CTCP DCC SEND
+            ;; Send CTCP DCC SEND - use provided connection or fall back to manager's
             (let* ((ip-int (ip-string-to-integer local-ip))
                    (ctcp-msg (format nil "~CDCC SEND ~a ~a ~a ~a~C"
                                      (code-char 1) filename ip-int port filesize (code-char 1)))
                    (full-msg (clatter.core.protocol:irc-privmsg nick ctcp-msg))
-                   (irc-conn (dcc-irc-conn manager)))
+                   (send-conn (or irc-conn (dcc-irc-conn manager))))
               (dcc-log-system manager "Sending raw: ~a" full-msg)
-              (if irc-conn
-                  (clatter.net.irc:irc-send irc-conn full-msg)
-                  (dcc-log-system manager "ERROR: No IRC connection in DCC manager!")))
+              (if send-conn
+                  (clatter.net.irc:irc-send send-conn full-msg)
+                  (dcc-log-system manager "ERROR: No IRC connection available!")))
             (dcc-log-system manager "DCC SEND ~a to ~a (~a bytes)" filename nick filesize)
             ;; Start listener thread
             (setf (dcc-thread conn)

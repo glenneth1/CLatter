@@ -377,7 +377,6 @@
    /dcc accept [id] - accept pending DCC offer
    /dcc reject [id] - reject pending DCC offer
    /dcc close [id] - close DCC connection"
-  (declare (ignore conn))
   (let ((manager clatter.net.dcc:*dcc-manager*))
     (unless manager
       (de.anvi.croatoan:submit
@@ -400,7 +399,7 @@
           ((string= subcmd-up "SEND")
            (multiple-value-bind (nick filepath) (split-first-word rest)
              (if (and (> (length nick) 0) (> (length filepath) 0))
-                 (clatter.net.dcc:dcc-initiate-send manager nick filepath)
+                 (clatter.net.dcc:dcc-initiate-send manager nick filepath conn)
                  (dcc-show-usage app "Usage: /dcc send <nick> <filepath>"))))
           
           ;; /dcc list
