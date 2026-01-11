@@ -464,9 +464,13 @@
             ;; Send CTCP DCC SEND
             (let* ((ip-int (ip-string-to-integer local-ip))
                    (ctcp-msg (format nil "~CDCC SEND ~a ~a ~a ~a~C"
-                                     (code-char 1) filename ip-int port filesize (code-char 1))))
-              (clatter.net.irc:irc-send (dcc-irc-conn manager)
-                                        (clatter.core.protocol:irc-privmsg nick ctcp-msg)))
+                                     (code-char 1) filename ip-int port filesize (code-char 1)))
+                   (full-msg (clatter.core.protocol:irc-privmsg nick ctcp-msg))
+                   (irc-conn (dcc-irc-conn manager)))
+              (dcc-log-system manager "Sending raw: ~a" full-msg)
+              (if irc-conn
+                  (clatter.net.irc:irc-send irc-conn full-msg)
+                  (dcc-log-system manager "ERROR: No IRC connection in DCC manager!")))
             (dcc-log-system manager "DCC SEND ~a to ~a (~a bytes)" filename nick filesize)
             ;; Start listener thread
             (setf (dcc-thread conn)
