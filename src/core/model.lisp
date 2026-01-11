@@ -148,9 +148,9 @@
    (nicklist-visible :initform nil :accessor ui-nicklist-visible)  ;; toggle state
    (input       :initform (make-input-state) :accessor ui-input)
    ;; Split pane state
-   (split-mode  :initform nil :accessor ui-split-mode)  ;; nil or :horizontal
+   (split-mode  :initform nil :accessor ui-split-mode)  ;; nil, :horizontal, or :vertical
    (split-buffer-id :initform nil :accessor ui-split-buffer-id)  ;; buffer shown in second pane
-   (active-pane :initform :left :accessor ui-active-pane)))  ;; :left or :right
+   (active-pane :initform :left :accessor ui-active-pane)))  ;; :left/:right (horiz) or :top/:bottom (vert)
 
 (defun make-ui-state () (make-instance 'ui-state))
 

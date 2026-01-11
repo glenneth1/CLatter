@@ -53,28 +53,43 @@ Layout: input at top (row 0), status below (row 1), chat panes below that, optio
                              :border nil))
         (setf (ui-win-nicklist ui) nil))
     ;; Create chat window(s) based on split mode (starting at row 2)
-    (if split-p
-        ;; Split mode: two chat panes side by side
-        (let* ((pane-w (floor (- right-w 1) 2))  ;; 1 char gap between panes
-               (pane2-x (+ right-x pane-w 1)))
-          (setf (ui-win-chat ui)
-                (make-instance 'de.anvi.croatoan:window
-                               :position (list chat-y right-x)
-                               :dimensions (list chat-h pane-w)
-                               :border nil))
-          (setf (ui-win-chat2 ui)
-                (make-instance 'de.anvi.croatoan:window
-                               :position (list chat-y pane2-x)
-                               :dimensions (list chat-h pane-w)
-                               :border nil)))
-        ;; Single pane mode
-        (progn
-          (setf (ui-win-chat ui)
-                (make-instance 'de.anvi.croatoan:window
-                               :position (list chat-y right-x)
-                               :dimensions (list chat-h right-w)
-                               :border nil))
-          (setf (ui-win-chat2 ui) nil)))))
+    (cond
+      ;; Horizontal split: two panes side by side (left/right)
+      ((eq split-p :horizontal)
+       (let* ((pane-w (floor (- right-w 1) 2))  ;; 1 char gap between panes
+              (pane2-x (+ right-x pane-w 1)))
+         (setf (ui-win-chat ui)
+               (make-instance 'de.anvi.croatoan:window
+                              :position (list chat-y right-x)
+                              :dimensions (list chat-h pane-w)
+                              :border nil))
+         (setf (ui-win-chat2 ui)
+               (make-instance 'de.anvi.croatoan:window
+                              :position (list chat-y pane2-x)
+                              :dimensions (list chat-h pane-w)
+                              :border nil))))
+      ;; Vertical split: two panes stacked (top/bottom)
+      ((eq split-p :vertical)
+       (let* ((pane-h (floor (- chat-h 1) 2))  ;; 1 row gap between panes
+              (pane2-y (+ chat-y pane-h 1)))
+         (setf (ui-win-chat ui)
+               (make-instance 'de.anvi.croatoan:window
+                              :position (list chat-y right-x)
+                              :dimensions (list pane-h right-w)
+                              :border nil))
+         (setf (ui-win-chat2 ui)
+               (make-instance 'de.anvi.croatoan:window
+                              :position (list pane2-y right-x)
+                              :dimensions (list pane-h right-w)
+                              :border nil))))
+      ;; Single pane mode (no split)
+      (t
+       (setf (ui-win-chat ui)
+             (make-instance 'de.anvi.croatoan:window
+                            :position (list chat-y right-x)
+                            :dimensions (list chat-h right-w)
+                            :border nil))
+       (setf (ui-win-chat2 ui) nil)))))
 
 (defun run-tui (app)
   (de.anvi.croatoan:with-screen (scr

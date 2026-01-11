@@ -30,13 +30,7 @@
    (last-activity  :initform (get-universal-time) :accessor irc-last-activity)
    (ping-sent-time :initform nil :accessor irc-ping-sent-time)))
 
-;; IRCv3 capabilities we want to request
-;; Note: typing indicator names vary by server - try both draft/typing and typing
-(defparameter *wanted-caps* '("server-time" "away-notify" "multi-prefix" "account-notify" 
-                               "message-tags" "draft/typing" "typing"
-                               "batch" "draft/chathistory" "chathistory"
-                               "labeled-response" "extended-join")
-  "List of IRCv3 capabilities to request from the server.")
+;; IRCv3 capabilities - use clatter.core.constants:+wanted-capabilities+
 
 (defun make-irc-connection (app network-id network-config)
   (make-instance 'irc-connection
@@ -186,7 +180,7 @@
               ;; Want SASL PLAIN if configured and have password
               (want-sasl-plain (and (eq sasl-type :plain)
                                     (clatter.core.config:get-network-password cfg)))
-              (caps-to-request (find-matching-caps available *wanted-caps*)))
+              (caps-to-request (find-matching-caps available clatter.core.constants:+wanted-capabilities+)))
          ;; Add sasl if we want it and it's available
          (when (and (or want-sasl-external want-sasl-plain)
                     (member "sasl" available :test #'string-equal))

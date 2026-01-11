@@ -301,8 +301,9 @@ Or with authinfo/plain text:
 | Ctrl-L      | Refresh/redraw screen     |
 | Backspace   | Delete character          |
 | Enter       | Send message/command      |
-| Ctrl-W      | Toggle split-pane view    |
-| Ctrl-]      | Switch active pane        |
+| Ctrl-W      | Toggle split pane         |
+| Ctrl-T      | Toggle split orientation  |
+| Ctrl-L      | Force redraw              |
 | Ctrl-R      | Set right pane buffer     |
 | Ctrl-X      | Swap panes                |
 | F10         | Quit                      |

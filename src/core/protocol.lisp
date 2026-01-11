@@ -222,14 +222,7 @@
         (encode-universal-time second minute hour day month year 0))
     (error () nil)))
 
-;;; IRC line length limits (RFC 2812: 512 bytes including CRLF)
-
-(defparameter +irc-max-line-length+ 510
-  "Maximum IRC line length (512 - 2 for CRLF)")
-
-(defparameter +irc-safe-message-length+ 400
-  "Safe message length accounting for prefix/command overhead.
-   Worst case: :nick!~user@longest.hostname.example.com PRIVMSG #channel :")
+;;; IRC line length limits - use constants from clatter.core.constants
 
 (defun message-overhead (command target)
   "Calculate overhead bytes for a PRIVMSG/NOTICE.
@@ -248,7 +241,7 @@
 
 (defun max-message-length (command target)
   "Calculate maximum safe message length for target."
-  (- +irc-max-line-length+ (message-overhead command target)))
+  (- clatter.core.constants:+irc-max-line-length+ (message-overhead command target)))
 
 (defun split-long-message (target text &key (command "PRIVMSG"))
   "Split TEXT into multiple messages if needed.
@@ -419,27 +412,4 @@
   "Send typing indicator to TARGET. STATE is :active, :paused, or :done."
   (irc-tagmsg target "+typing" (string-downcase (symbol-name state))))
 
-;;; Numeric reply codes
-
-(defparameter +rpl-welcome+ "001")
-(defparameter +rpl-yourhost+ "002")
-(defparameter +rpl-created+ "003")
-(defparameter +rpl-myinfo+ "004")
-(defparameter +rpl-isupport+ "005")
-(defparameter +rpl-namreply+ "353")
-(defparameter +rpl-endofnames+ "366")
-(defparameter +rpl-motd+ "372")
-(defparameter +rpl-motdstart+ "375")
-(defparameter +rpl-endofmotd+ "376")
-(defparameter +rpl-topic+ "332")
-(defparameter +rpl-topicwhotime+ "333")
-(defparameter +err-nicknameinuse+ "433")
-
-;; WHOIS reply codes
-(defparameter +rpl-whoisuser+ "311")
-(defparameter +rpl-whoisserver+ "312")
-(defparameter +rpl-whoisoperator+ "313")
-(defparameter +rpl-whoisidle+ "317")
-(defparameter +rpl-endofwhois+ "318")
-(defparameter +rpl-whoischannels+ "319")
-(defparameter +rpl-whoisaccount+ "330")
+;;; Numeric reply codes - use constants from clatter.core.constants

@@ -4,20 +4,8 @@
 ;;; Supports DCC CHAT and DCC SEND
 
 ;;;; ============================================================
-;;;; Constants
+;;;; Constants - use clatter.core.constants for DCC values
 ;;;; ============================================================
-
-(defparameter *dcc-port-range-start* 49152
-  "Start of port range for DCC listening sockets (ephemeral/dynamic port range).")
-
-(defparameter *dcc-port-range-end* 65535
-  "End of port range for DCC listening sockets.")
-
-(defparameter *dcc-timeout* 120
-  "Timeout in seconds for DCC connection attempts.")
-
-(defparameter *dcc-buffer-size* 4096
-  "Buffer size for DCC file transfers.")
 
 ;;;; ============================================================
 ;;;; DCC Manager - tracks all DCC connections
@@ -327,7 +315,7 @@
           (dcc-log-system manager "DCC RECV ~a from ~a started (expecting ~a bytes)" 
                           (dcc-filename conn) (dcc-nick conn) (dcc-filesize conn))
           ;; Receive loop - read available bytes using the underlying fd-stream
-          (let ((buffer (make-array *dcc-buffer-size* :element-type '(unsigned-byte 8)))
+          (let ((buffer (make-array clatter.core.constants:+dcc-buffer-size+ :element-type '(unsigned-byte 8)))
                 (total-received 0)
                 (filesize (dcc-filesize conn)))
             (block receive-loop
@@ -338,7 +326,7 @@
                          (return-from receive-loop))
                        ;; Read available bytes one at a time (read-byte blocks properly)
                        (let ((bytes-read 0)
-                             (max-read (min *dcc-buffer-size* (- filesize total-received))))
+                             (max-read (min clatter.core.constants:+dcc-buffer-size+ (- filesize total-received))))
                          ;; Read first byte (blocks until available)
                          (let ((byte (read-byte raw-stream nil nil)))
                            (unless byte
@@ -376,7 +364,7 @@
       (let* ((file-stream (open (dcc-filepath conn) :direction :input
                                                    :element-type '(unsigned-byte 8)))
              (stream (dcc-stream conn))
-             (buffer (make-array *dcc-buffer-size* :element-type '(unsigned-byte 8)))
+             (buffer (make-array clatter.core.constants:+dcc-buffer-size+ :element-type '(unsigned-byte 8)))
              (total-sent 0))
         (setf (dcc-file-stream conn) file-stream
               (dcc-state conn) :active)

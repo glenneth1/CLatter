@@ -88,6 +88,13 @@
 (defmethod execute-action ((action set-right-buffer-action) app)
   (%split-set-right-buffer app))
 
+(defclass toggle-split-orientation-action (key-action)
+  ()
+  (:default-initargs :name "toggle-split-orientation" :description "Toggle split between horizontal and vertical"))
+
+(defmethod execute-action ((action toggle-split-orientation-action) app)
+  (%toggle-split-orientation app))
+
 ;;; ============================================================
 ;;; UI Toggle Actions
 ;;; ============================================================
@@ -211,6 +218,7 @@
 (register-action "swap-panes" (make-instance 'swap-panes-action))
 (register-action "toggle-active-pane" (make-instance 'toggle-active-pane-action))
 (register-action "set-right-buffer" (make-instance 'set-right-buffer-action))
+(register-action "toggle-split-orientation" (make-instance 'toggle-split-orientation-action))
 (register-action "toggle-nicklist" (make-instance 'toggle-nicklist-action))
 (register-action "redraw" (make-instance 'redraw-action))
 (register-action "backspace" (make-instance 'backspace-action))

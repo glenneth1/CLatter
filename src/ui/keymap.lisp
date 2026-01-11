@@ -82,7 +82,7 @@
     (mark-dirty app :layout :chat :buflist :status :input :nicklist)))
 
 (defun %toggle-split (app)
-  "Toggle split pane mode on/off."
+  "Toggle split pane mode on/off (horizontal split)."
   (let ((ui (app-ui app)))
     (if (ui-split-mode ui)
         ;; Turn off split
@@ -107,6 +107,24 @@
     ;; Recreate windows with new layout
     (clatter.ui.tui:create-layout-windows app (ui-screen ui))
     (mark-dirty app :layout :chat :buflist :status :input)))
+
+(defun %toggle-split-orientation (app)
+  "Toggle split orientation between horizontal and vertical."
+  (let ((ui (app-ui app)))
+    (when (ui-split-mode ui)
+      ;; Toggle between horizontal and vertical
+      (setf (ui-split-mode ui)
+            (if (eq (ui-split-mode ui) :horizontal) :vertical :horizontal))
+      ;; Update active pane naming for vertical mode
+      (when (eq (ui-split-mode ui) :vertical)
+        (setf (ui-active-pane ui) 
+              (if (eq (ui-active-pane ui) :left) :top :bottom)))
+      (when (eq (ui-split-mode ui) :horizontal)
+        (setf (ui-active-pane ui)
+              (if (member (ui-active-pane ui) '(:top :left)) :left :right)))
+      ;; Recreate windows with new layout
+      (clatter.ui.tui:create-layout-windows app (ui-screen ui))
+      (mark-dirty app :layout :chat :buflist :status :input))))
 
 (defun %split-set-right-buffer (app)
   "Set the right pane to show the current buffer selection."
@@ -135,7 +153,14 @@
   (let ((ui (app-ui app)))
     (when (ui-split-mode ui)
       (setf (ui-active-pane ui)
-            (if (eq (ui-active-pane ui) :left) :right :left))
+            (cond
+              ;; Horizontal mode: toggle left/right
+              ((eq (ui-split-mode ui) :horizontal)
+               (if (member (ui-active-pane ui) '(:left :top)) :right :left))
+              ;; Vertical mode: toggle top/bottom
+              ((eq (ui-split-mode ui) :vertical)
+               (if (member (ui-active-pane ui) '(:top :left)) :bottom :top))
+              (t :left)))
       (mark-dirty app :chat :status))))
 
 (defun install-keybindings (screen app)
@@ -194,6 +219,7 @@
 
   ;; Split pane controls - using CLOS actions
   (de.anvi.croatoan:bind screen (code-char 23) (make-action-handler "toggle-split" app))       ;; Ctrl-W
+  (de.anvi.croatoan:bind screen (code-char 20) (make-action-handler "toggle-split-orientation" app)) ;; Ctrl-T
   (de.anvi.croatoan:bind screen (code-char 18) (make-action-handler "set-right-buffer" app))   ;; Ctrl-R
   (de.anvi.croatoan:bind screen (code-char 24) (make-action-handler "swap-panes" app))         ;; Ctrl-X
   (de.anvi.croatoan:bind screen (code-char 29) (make-action-handler "toggle-active-pane" app)) ;; Ctrl+]

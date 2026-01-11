@@ -275,8 +275,7 @@
                                                  :text "Usage: /autojoin [list|add|remove] [#channel]")))))))))
 
 
-(defparameter *crafterbin-url* "https://crafterbin.glennstack.dev"
-  "URL of the CrafterBin service.")
+;; CrafterBin URL - use clatter.core.constants:+crafterbin-url+
 
 (defun handle-crafterbin-command (app args)
   "Handle /crafterbin <file> - upload file to crafterbin and copy URL to clipboard."
@@ -319,7 +318,7 @@
   (handler-case
       (multiple-value-bind (output error-output exit-code)
           (uiop:run-program 
-           (list "curl" "-s" "-X" "POST" "-F" (format nil "file=@~a" filepath) *crafterbin-url*)
+           (list "curl" "-s" "-X" "POST" "-F" (format nil "file=@~a" filepath) clatter.core.constants:+crafterbin-url+)
            :output :string
            :error-output :string
            :ignore-error-status t)
