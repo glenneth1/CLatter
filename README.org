@@ -190,9 +190,9 @@ machine irc.libera.chat login yournick password your-secret-password
 
 CLatter will decrypt the file using GPG and look up the password by matching the server and nick.
 
-**** systemd-creds (encrypted with TPM/host key)
+**** systemd-creds (encrypted with TPM and/or host key)
 
-Use =systemd-creds= to create a system credential to encrypt your password. This ties the credential to your machine and doesn't require GPG. This requires root privlages.
+Use =systemd-creds= to create a SYSTEM credential to encrypt your password. This ties the credential to your machine and doesn't require GPG. This *requires* root privilages.
 
 1. Create the encrypted credential:
    #+begin_src bash
@@ -204,11 +204,27 @@ Use =systemd-creds= to create a system credential to encrypt your password. This
 
 2. Update your config:
    #+begin_src lisp
-   :nickserv-pw (:systemd-cred "/home/you/.config/clatter/creds/nickserv.cred")
+   :nickserv-pw (:systemd-creds "/home/you/.config/clatter/creds/nickserv.cred")
    #+end_src
 
 CLatter will decrypt the credential file at startup using =systemd-creds decrypt=.
 
+**** systemd-creds --user (encrypted with TPM and/or host key)
+
+Use =systemd-creds= with the =--user switch= to create a USER credential to encrypt your password. This ties the credential to your machine and doesn't require GPG. This *does not* require root privilages.
+
+1. Create the encrypted credential:
+   #+begin_src bash
+   mkdir -p ~/.config/clatter/creds
+   read -s -p "Enter NickServ password: " pw && echo -n "$pw" | \
+     systemd-creds encrypt --user - ~/.config/clatter/creds/nickserv.cred && \
+     echo -e "\nCredential saved"
+   #+end_src
+
+2. Update your config:
+   #+begin_src lisp
+   :nickserv-pw (:systemd-creds-user "/home/you/.config/clatter/creds/nickserv.cred")
+   #+end_src
 
 **** pass(1) (GPG encrypted)
 Use =pass(1)= the standard unix password manager, to store and encrypt your password. This works using GPG and the credential is portable. 
